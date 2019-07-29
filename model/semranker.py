@@ -39,11 +39,20 @@ class SemRanker(object):
                 pooled_outputs.append(pooled)
         num_filters_total = num_filters * len(filter_sizes)
         h_pool = tf.concat(pooled_outputs, 3)
-        h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total])
+        h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total]) # sum_of(in_product)
+        rz = tf.reduce_sum(in_product)
+        z1 = tf.cumsum(in_product, exclusive=True)
+        z2 = tf.cumsum(in_product)
+        mask = tf.sequence_mask(z2, maxlen=rz, dtype=tf.int32) - \
+            tf.sequence_mask(z1, maxlen=rz, dtype=tf.int32)
 
-    def cats_text_cnn(self, cats, cats_in_product):
-        pass
+        p = tf.matmul(mask, h_pool_flat)
+        p = p / tf.cast(in_product, tf.float32) # batch_size x num_filters_total
+        return p
 
-    def attrs_text_cnn(self, attrs, attrs_in_product):
-        pass
+    def cats_text_cnn(self, cats_embed, cats_in_product):
+        return text_cnn(cats_embed, cats_in_product)
+
+    def attrs_text_cnn(self, attrs_embed, attrs_in_product):
+        return text_cnn(attrs_embed, attrs_in_product)
 
