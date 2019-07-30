@@ -33,7 +33,7 @@ class CsvSemRankerReader(tf.contrib.data.CsvDataset):
             self.attr_token_2_idx[w] = i
 
         self.hasher = pyhash.murmur3_32()
-        super(CsvNerReader, self).__init__(*args, **kwargs)
+        super(CsvSemRankerReader, self).__init__(*args, **kwargs)
 
     def unknown_to_idx(self, unknown):
         return self.hasher(unknown) % self.unknown_bin

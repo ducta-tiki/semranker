@@ -16,20 +16,21 @@ def add_to_vocab(s):
             unigrams, bigrams, char_trigrams
     tokens = s.split()
     for t in tokens:
-        if t in unigrams:
-            unigrams[t] += 1
-        else:
-            unigrams[t] = 1
-        count_unigrams += 1
-        
-        z = "#" + t +"#"
-        for i in range(0, max(len(z)-3, 0)):
-            v = z[i:i+3]
-            if v in char_trigrams:
-                char_trigrams[v] += 1
+        if len(t):
+            if t in unigrams:
+                unigrams[t] += 1
             else:
-                char_trigrams[v] = 1
-            count_char_trigrams += 1
+                unigrams[t] = 1
+            count_unigrams += 1
+            
+            z = "#" + t +"#"
+            for i in range(0, max(len(z)-2, 1)):
+                v = z[i:i+3]
+                if v in char_trigrams:
+                    char_trigrams[v] += 1
+                else:
+                    char_trigrams[v] = 1
+                count_char_trigrams += 1
 
     for i in range(0, max(len(tokens) - 1, 0)):
         t = "%s#%s" % (tokens[i], tokens[i+1])

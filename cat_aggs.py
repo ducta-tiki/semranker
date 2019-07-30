@@ -206,8 +206,8 @@ class AggregationFields(object):
                 sales_monthly = 0
                 sales_yearly = 0
                 if p.get('sales_volume'):
-                    sales_monthly = int(p.get('sales_volume').get('sales_monthly', 0))
-                    sales_yearly = int(p.get('sales_volume').get('sales_yearly', 0))
+                    sales_monthly = int(p.get('sales_volume').get('monthly', 0))
+                    sales_yearly = int(p.get('sales_volume').get('yearly', 0))
                 support_p2h_delivery = 0
                 if p.get('support_p2h_delivery'):
                     support_p2h_delivery = int(p.get('support_p2h_delivery'))
