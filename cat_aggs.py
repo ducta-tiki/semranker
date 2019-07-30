@@ -277,7 +277,7 @@ class AggregationFields(object):
                     'product_id': str(p.get('id')),
                     'name': product_name,
                     'brand': brand,
-                    'author': ";".join(authors),
+                    'author': " ".join(authors),
                     'attributes': "|".join(write_attrs),
                     'categories': '|'.join(sorted(write_cats, key=lambda x:x.split("#")[1])),
                     'reviews': reviews_count,
