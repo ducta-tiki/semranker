@@ -89,7 +89,7 @@ def convert_cats(
 
     for cat_str in arr_cats:
         zz = cat_str.split("|")
-        if len(zz) == 0:
+        if len(cat_str.strip()) == 0:
             cat_in_product.append(1)
             cat_indices.append(cat_zero_idx)
             unigram_indices.append([token_zero_idx,] * unigram_max_seq_len)
@@ -130,7 +130,8 @@ def convert_attrs(
 
     for attr_str in arr_attrs:
         zz = attr_str.split("|")
-        if len(zz) == 0:
+
+        if len(attr_str.strip()) == 0:
             attr_in_product.append(1)
             attr_indices.append(attr_zero_idx)
             unigram_indices.append([token_zero_idx,] * unigram_max_seq_len)

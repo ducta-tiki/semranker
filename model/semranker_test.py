@@ -166,7 +166,83 @@ class SemRankerTest(tf.test.TestCase):
             for t in indices[0][len(ngram):]:
                 self.assertEqual(t, self.zero_idx)
 
-        convert_cats()
+        cat_indices, cat_in_product, unigram_indices, bigram_indices, char_trigram_indices = \
+            convert_cats(
+                [
+                    '8322#2#Nhà Sách Tiki|316#3#Sách tiếng Việt |393#4#Sách thiếu nhi |853#5#Kiến thức - Bách khoa',
+                    '1846#2#Laptop - Máy Vi Tính - Linh kiện|8060#3#Thiết bị lưu trữ'
+                ],
+                self.token_2_idx,
+                self.cat_token_2_idx,
+                self.zero_idx,
+                self.cat_zero_idx,
+                self.unknown_to_idx,
+                10, 10, 50
+            )
+        actual_cats = ['8322#2', '316#3', '393#4', '853#5', '1846#2', '8060#3']
+        for cat_idx, ac in zip(cat_indices, actual_cats):
+            self.assertEqual(cat_idx, self.cat_token_2_idx[ac])
+        self.assertEqual(cat_in_product, [4, 2])
+
+        u1, b1, c1 = convert_strings(
+            ["nhà sách tiki"], self.token_2_idx, self.zero_idx, 
+            10, 10, 50, self.unknown_to_idx)
+        u2, b2, c2 = convert_strings(
+            ["sách tiếng việt"], self.token_2_idx, self.zero_idx, 
+            10, 10, 50, self.unknown_to_idx)
+        un, bn, cn = convert_strings(
+            ["thiết bị lưu trữ"], self.token_2_idx, self.zero_idx, 
+            10, 10, 50, self.unknown_to_idx)
+
+        self.assertEqual(unigram_indices[0], u1[0])
+        self.assertEqual(bigram_indices[0], b1[0])
+        self.assertEqual(char_trigram_indices[0], c1[0])
+
+        self.assertEqual(unigram_indices[1], u2[0])
+        self.assertEqual(bigram_indices[1], b2[0])
+        self.assertEqual(char_trigram_indices[1], c2[0])
+
+        self.assertEqual(unigram_indices[-1], un[0])
+        self.assertEqual(bigram_indices[-1], bn[0])
+        self.assertEqual(char_trigram_indices[-1], cn[0])
+
+        attr_indices, attr_in_product, unigram_indices, bigram_indices, char_trigram_indices = \
+            convert_attrs(
+                [
+                    '1165#filter_ssd_storage#120 GB - 128 GB|1166#filter_ssd_product_size#2.5 inch',
+                    ''
+                ],
+                self.token_2_idx,
+                self.attr_token_2_idx,
+                self.zero_idx,
+                self.attr_zero_idx,
+                self.unknown_to_idx,
+                10, 10, 50
+            )
+
+        actual_attrs = ['1165#filter_ssd_storage', '1166#filter_ssd_product_size']
+        for attr_idx, ac in zip(attr_indices[:2], actual_attrs):
+            self.assertEqual(attr_idx, self.attr_token_2_idx[ac])
+        self.assertEqual(attr_indices[2], self.attr_zero_idx)
+        
+        u1, b1, c1 = convert_strings(
+            ["120 gb - 128 gb"], self.token_2_idx, self.zero_idx, 
+            10, 10, 50, self.unknown_to_idx)
+        u2, b2, c2 = convert_strings(
+            ["2.5 inch"], self.token_2_idx, self.zero_idx, 
+            10, 10, 50, self.unknown_to_idx)
+        
+        self.assertEqual(unigram_indices[0], u1[0])
+        self.assertEqual(bigram_indices[0], b1[0])
+        self.assertEqual(char_trigram_indices[0], c1[0])
+
+        self.assertEqual(unigram_indices[1], u2[0])
+        self.assertEqual(bigram_indices[1], b2[0])
+        self.assertEqual(char_trigram_indices[1], c2[0])
+        
+        self.assertEqual(unigram_indices[-1], [self.zero_idx,]*10)
+        self.assertEqual(bigram_indices[-1], [self.zero_idx,]*10)
+        self.assertEqual(char_trigram_indices[-1], [self.zero_idx,]*50)
 
     def create_placeholder_data(self):
         queries = list(map(lambda x: query_preprocessing(x), self.queries))
