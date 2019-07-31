@@ -1,4 +1,5 @@
 from vn_lang import query_preprocessing
+import numpy as np
 
 
 def convert_tokens(arr_tokens, token_2_idx, zero_idx, max_seq_len, unknown_map_func):
@@ -72,7 +73,9 @@ def convert_strings(
     char_trigram_indices = convert_tokens(
         char_trigram_tokens, token_2_idx, zero_idx, char_trigram_max_seq_len, unknown_map_func)
 
-    return unigram_indices, bigram_indices, char_trigram_indices
+    return np.asarray(unigram_indices, dtype=np.int32), \
+           np.asarray(bigram_indices, dtype=np.int32), \
+           np.asarray(char_trigram_indices, dtype=np.int32)
 
 
 def convert_cats(
@@ -113,7 +116,11 @@ def convert_cats(
                 char_trigram_indices.append(ci[0])
         cat_in_product.append(count)
     
-    return cat_indices, cat_in_product, unigram_indices, bigram_indices, char_trigram_indices
+    return np.asarray(cat_indices, dtype=np.int32),\
+        np.asarray(cat_in_product, dtype=np.int32),\
+        np.asarray(unigram_indices, dtype=np.int32),\
+        np.asarray(bigram_indices, dtype=np.int32),\
+        np.asarray(char_trigram_indices, dtype=np.int32)
 
 
 def convert_attrs(
@@ -155,4 +162,28 @@ def convert_attrs(
                 char_trigram_indices.append(ci[0])
         attr_in_product.append(count)
     
-    return attr_indices, attr_in_product, unigram_indices, bigram_indices, char_trigram_indices
+    return np.asarray(attr_indices, dtype=np.int32),\
+        np.asarray(attr_in_product, dtype=np.int32),\
+        np.asarray(unigram_indices, dtype=np.int32),\
+        np.asarray(bigram_indices, dtype=np.int32),\
+        np.asarray(char_trigram_indices, dtype=np.int32)
+
+
+def convert_features(features, precomputed_min, precomputed_max):
+    """
+    Convert raw features to normalized features
+    :param features: batch_size x num_of_features
+    :param precomputed_min: (num_of_features,)
+    :param precompute_max: (num_of_features,)
+    :return: normalize features
+    """
+
+    precomputed_min = np.expand_dims(
+        np.asarray(precomputed_min, dtype=np.float32), axis=0)
+    precomputed_max = np.expand_dims(
+        np.asarray(precomputed_max, dtype=np.float32), axis=0)
+    features = np.asarray(features, dtype=np.float32)
+    
+    features = (features - precomputed_min) / precomputed_max
+
+    return features

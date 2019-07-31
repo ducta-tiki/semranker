@@ -5,11 +5,12 @@ import tensorflow as tf
 class SemRanker(object):
     def __init__(
         self, vocab_size, unknown_bin, cat_tokens_size, attr_tokens_size, 
-        embed_size=80, filter_sizes=[2,3,4,5], 
+        embed_size=80, attr_cat_embed_size=10, filter_sizes=[2,3,4,5], 
         max_query_length=40, max_product_name_length=50, 
         max_brand_length=25, max_author_length=25,
         max_attr_length=20, max_cat_length=20, num_filters=5):
         self.embed_size = embed_size
+        self.attr_cat_embed_size = attr_cat_embed_size
         self.max_query_length = max_query_length
         self.max_product_name_length = max_product_name_length
         self.max_brand_length = max_brand_length
@@ -23,7 +24,7 @@ class SemRanker(object):
         self.cat_tokens_size = cat_tokens_size
         self.attr_tokens_size = attr_tokens_size
 
-    def text_cnn(self, embed_vecs, in_product, max_length, name):
+    def text_cnn(self, embed_vecs, in_product, max_length, name, tokens_embed=None):
         pooled_outputs = []
         for i, filter_size in enumerate(self.filter_sizes):
             with tf.name_scope("%s-conv-maxpool-%d" % (name, filter_size)):
@@ -49,41 +50,24 @@ class SemRanker(object):
                 pooled_outputs.append(pooled)
         num_filters_total = self.num_filters * len(self.filter_sizes)
         h_pool = tf.concat(pooled_outputs, 3)
-        h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total]) # sum_of(in_product)
-        if in_product:
+        h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total]) # sum_of(in_product) x num_filters_total
+
+        if not in_product is None:
+            h_pool_flat = tf.concat([h_pool_flat, tokens_embed], axis=1) # sum_of(in_product) x (num_filters_total + token_embed_size)
             rz = tf.reduce_sum(in_product)
             z1 = tf.cumsum(in_product, exclusive=True)
             z2 = tf.cumsum(in_product)
-            mask = tf.sequence_mask(z2, maxlen=rz, dtype=tf.int32) - \
-                tf.sequence_mask(z1, maxlen=rz, dtype=tf.int32)
-
+            mask = tf.sequence_mask(z2, maxlen=rz, dtype=tf.float32) - \
+                tf.sequence_mask(z1, maxlen=rz, dtype=tf.float32) # batch_size x sum_of(in_product)
             p = tf.matmul(mask, h_pool_flat)
-            p = p / tf.cast(in_product, tf.float32) # batch_size x num_filters_total
+            p = p / tf.expand_dims(tf.cast(in_product, tf.float32), axis=1) # batch_size x (num_filters_total + token_embed_size)
             return p
         return h_pool_flat
-
-    def cats_text_cnn(self, cats_embed, cats_in_product, max_len, name):
-        return self.text_cnn(cats_embed, cats_in_product, max_len, name)
-
-    def attrs_text_cnn(self, attrs_embed, attrs_in_product, max_len, name):
-        return self.text_cnn(attrs_embed, attrs_in_product, max_len, name)
-
-    def query_text_cnn(self, queries_embed, max_len, name):
-        return self.text_cnn(queries_embed, None, max_len, name)
-
-    def product_text_cnn(self, products_embed, max_len, name):
-        return self.text_cnn(products_embed, None, max_len, name)
-
-    def brand_text_cnn(self, brands_embed, max_len, name):
-        return self.text_cnn(brands_embed, None, max_len, name)
-
-    def author_text_cnn(self, authors_embed, max_len, name):
-        return self.text_cnn(authors_embed, None, max_len, name)
 
     def __call__(
         self, query_indices=None, product_name_indices=None, brand_indices=None, author_indices=None,
         cat_indices=None, attr_indices=None, cat_tokens=None, attr_tokens=None, 
-        cats_in_product=None, attrs_in_product=None):
+        cats_in_product=None, attrs_in_product=None, free_features=None, training=True):
         """
         :param query_indices: (unigrams, bigrams, char_trigrams) of query
                     [(batch_size, max_len_1), (batch_size, max_len_2), (batch_size, max_len_3)]
@@ -105,6 +89,8 @@ class SemRanker(object):
                     (batch_size,)
         :param attrs_in_product: How many attributes in a product
                     (batch_size,)
+        :param free_features: Free features of products
+                    (batch_size, number_of_features)
         :return: cosine score
         """
 
@@ -113,43 +99,44 @@ class SemRanker(object):
                 'n_gram_embedding', [self.vocab_size+self.unknown_bin, self.embed_size],
                 initializer=tf.random_normal_initializer(mean=0, stddev=0.01)
             )
-            zero_vector = tf.zeros([1, self.embed_size], dtype=tf.float32)
+            zero_vector_ngram = tf.zeros([1, self.embed_size], dtype=tf.float32)
             ngram_embed_weights = tf.concat(
-                [ngram_embed_weights, zero_vector], axis=0, name="zero_padding_n_gram_embedding")
+                [ngram_embed_weights, zero_vector_ngram], axis=0, name="zero_padding_n_gram_embedding")
 
+            zero_vector_attr_cat = tf.zeros([1, self.attr_cat_embed_size], dtype=tf.float32)
             cat_embed_weights = tf.get_variable(
-                'cat_embedding', [self.cat_tokens_size, self.embed_size]
+                'cat_embedding', [self.cat_tokens_size, self.attr_cat_embed_size]
             )
             cat_embed_weights = tf.concat(
-                [cat_embed_weights, zero_vector], axis=0, name="zero_padding_cat_embedding")
+                [cat_embed_weights, zero_vector_attr_cat], axis=0, name="zero_padding_cat_embedding")
 
             attr_embed_weights = tf.get_variable(
-                'attr_embedding', [self.attr_tokens_size, self.embed_size]
+                'attr_embedding', [self.attr_tokens_size, self.attr_cat_embed_size]
             )
             attr_embed_weights = tf.concat(
-                [attr_embed_weights, zero_vector], axis=0, name="zero_padding_attr_embedding")
+                [attr_embed_weights, zero_vector_attr_cat], axis=0, name="zero_padding_attr_embedding")
 
         with tf.name_scope("calc_embedding_feature"):
             embed_queries = []
             for qz, name, scale in zip(query_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
                 qz_embed = tf.nn.embedding_lookup(ngram_embed_weights, qz)
-                qz_cnn = self.query_text_cnn(qz_embed, self.max_query_length*scale, "query-" + name)
+                qz_cnn = self.text_cnn(qz_embed, None, self.max_query_length*scale, "query-" + name)
                 embed_queries.append(qz_cnn)
 
             embed_queries = tf.concat(embed_queries, axis=1, name="query_encode")
 
-            embed_products = []
+            embed_product_names = []
             for pz, name, scale in zip(product_name_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
                 pz_embed = tf.nn.embedding_lookup(ngram_embed_weights, pz)
-                pz_cnn = self.query_text_cnn(pz_embed, self.max_product_name_length*scale, "product-" + name)
-                embed_products.append(pz_cnn)
+                pz_cnn = self.text_cnn(pz_embed, None, self.max_product_name_length*scale, "product-" + name)
+                embed_product_names.append(pz_cnn)
 
-            embed_products = tf.concat(embed_products, axis=1, name="product_encode")
+            embed_product_names = tf.concat(embed_product_names, axis=1, name="product_name_encode")
 
             embed_brand = []
             for bz, name, scale in zip(brand_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
                 bz_embed = tf.nn.embedding_lookup(ngram_embed_weights, bz)
-                bz_cnn = self.query_text_cnn(bz_embed, self.max_brand_length*scale, "brand-" + name)
+                bz_cnn = self.text_cnn(bz_embed, None, self.max_brand_length*scale, "brand-" + name)
                 embed_brand.append(bz_cnn)
 
             embed_brand = tf.concat(embed_brand, axis=1, name="brand_encode")
@@ -157,8 +144,54 @@ class SemRanker(object):
             embed_author = []
             for az, name, scale in zip(author_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
                 az_embed = tf.nn.embedding_lookup(ngram_embed_weights, az)
-                az_cnn = self.query_text_cnn(az_embed, self.max_author_length*scale, "author-" + name)
+                az_cnn = self.text_cnn(az_embed, None, self.max_author_length*scale, "author-" + name)
                 embed_author.append(az_cnn)
 
             embed_author = tf.concat(embed_author, axis=1, name="author_encode")
 
+            embed_cat_tokens = tf.nn.embedding_lookup(cat_embed_weights, cat_tokens)
+            embed_cat = []
+            for cz, name, scale in zip(cat_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
+                cz_embed = tf.nn.embedding_lookup(ngram_embed_weights, cz)
+                cz_cnn = self.text_cnn(
+                    cz_embed, cats_in_product, self.max_cat_length*scale, "category-" + name, embed_cat_tokens)
+                embed_cat.append(cz_cnn)
+            embed_cat = tf.concat(embed_cat, axis=1, name="category_encode")
+
+            embed_attr_tokens = tf.nn.embedding_lookup(attr_embed_weights, attr_tokens)
+            embed_attr = []
+            for attr_z, name, scale in zip(attr_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
+                attr_z_embed = tf.nn.embedding_lookup(ngram_embed_weights, attr_z)
+                attr_z_cnn = self.text_cnn(
+                    attr_z_embed, attrs_in_product, self.max_cat_length*scale, "attribute-" + name, embed_attr_tokens)
+                embed_attr.append(attr_z_cnn)
+            embed_attr = tf.concat(embed_attr, axis=1, name="attribute_encode")
+
+            product_features = tf.concat([
+                embed_product_names, embed_brand, embed_author, embed_cat, embed_attr, free_features
+            ], axis=1)
+
+        with tf.name_scope("bn"):
+            product_features = tf.layers.batch_normalization(
+                                product_features, training=training)
+            product_features = tf.identity(product_features, name="product_encode")
+
+            query_features = tf.layers.batch_normalization(
+                                query_features, training=training)
+            query_features = tf.nn.tanh(query_features)
+            query_features = tf.identity(query_features, name="query_features")
+
+        with tf.variable_scope("dense"):
+            v1 = tf.layers.dense(
+                product_features,
+                units=self.num_filters * len(self.filter_sizes),
+                kernel_initializer=tf.random_normal_initializer(mean=0, stddev=0.01),
+                activation=tf.nn.tanh
+            )
+        with tf.name_scope("rank"):
+            s = tf.losses.cosine_distance(
+                    tf.nn.l2_normalize(v1, 1), 
+                    tf.nn.l2_normalize(query_features, 1), 
+                axis=1, name="score")
+
+        return s

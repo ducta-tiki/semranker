@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from vn_lang import query_preprocessing
-from reader.convert import convert_strings, create_ngrams, convert_cats, convert_attrs
+from reader.convert import convert_strings, create_ngrams, convert_cats, convert_attrs, convert_features
 from model.semranker import SemRanker
 import pyhash
 
@@ -18,13 +18,14 @@ class SemRankerTest(tf.test.TestCase):
         self.hasher = pyhash.murmur3_32()
         self.unknown_bin = 16
 
-        feature_precomputed = {
+        self.feature_precomputed = {
             "reviews": [0.0, 3437.0], 
             "rating": [0.0, 100.0], 
-            "sales_monthly": [0.0, 0.0], 
-            "sales_yearly": [0.0, 0.0], 
+            "sales_monthly": [0.0, 14345.0], 
+            "sales_yearly": [0.0, 136592.0], 
             "support_p2h_delivery": [0.0, 1.0]
         }
+        self.header_fields = ["reviews", "rating", "sales_monthly", "sales_yearly", "support_p2h_delivery"]
 
         p1 = {
             'product_name': 'Ổ Cứng SSD Kingston HyperX FURY 120GB - SATA III - Hàng Chính Hãng',
@@ -67,6 +68,7 @@ class SemRankerTest(tf.test.TestCase):
 
         self.products = [p1, p2, p3]
         self.queries = ['ổ cứng', 'vở tập tô', 'ốp lưng']
+        self.target = [0, 1, 2]
 
         for p in self.products:
             self.add_to_vocab(query_preprocessing(p['product_name']))
@@ -99,13 +101,14 @@ class SemRankerTest(tf.test.TestCase):
         self.attr_zero_idx = len(self.attr_tokens)
 
         self.embed_size = 80
+        self.attr_cat_embed_size = 10
         self.vocab_size = len(self.token_2_idx)
         self.max_query_length = 25
         self.max_product_length = 50
         self.max_brand_length = 25
         self.max_author_length = 25
-        self.max_attr_length = 20
-        self.max_cat_length = 20
+        self.max_attr_length = 10
+        self.max_cat_length = 10
         self.filter_sizes = [2,3,4,5]
         self.num_filters = 5
 
@@ -182,7 +185,8 @@ class SemRankerTest(tf.test.TestCase):
         actual_cats = ['8322#2', '316#3', '393#4', '853#5', '1846#2', '8060#3']
         for cat_idx, ac in zip(cat_indices, actual_cats):
             self.assertEqual(cat_idx, self.cat_token_2_idx[ac])
-        self.assertEqual(cat_in_product, [4, 2])
+        
+        self.assertEqual(list(cat_in_product), [4, 2])
 
         u1, b1, c1 = convert_strings(
             ["nhà sách tiki"], self.token_2_idx, self.zero_idx, 
@@ -194,17 +198,17 @@ class SemRankerTest(tf.test.TestCase):
             ["thiết bị lưu trữ"], self.token_2_idx, self.zero_idx, 
             10, 10, 50, self.unknown_to_idx)
 
-        self.assertEqual(unigram_indices[0], u1[0])
-        self.assertEqual(bigram_indices[0], b1[0])
-        self.assertEqual(char_trigram_indices[0], c1[0])
+        self.assertEqual(list(unigram_indices[0]), list(u1[0]))
+        self.assertEqual(list(bigram_indices[0]), list(b1[0]))
+        self.assertEqual(list(char_trigram_indices[0]), list(c1[0]))
 
-        self.assertEqual(unigram_indices[1], u2[0])
-        self.assertEqual(bigram_indices[1], b2[0])
-        self.assertEqual(char_trigram_indices[1], c2[0])
+        self.assertEqual(list(unigram_indices[1]), list(u2[0]))
+        self.assertEqual(list(bigram_indices[1]), list(b2[0]))
+        self.assertEqual(list(char_trigram_indices[1]), list(c2[0]))
 
-        self.assertEqual(unigram_indices[-1], un[0])
-        self.assertEqual(bigram_indices[-1], bn[0])
-        self.assertEqual(char_trigram_indices[-1], cn[0])
+        self.assertEqual(list(unigram_indices[-1]), list(un[0]))
+        self.assertEqual(list(bigram_indices[-1]), list(bn[0]))
+        self.assertEqual(list(char_trigram_indices[-1]), list(cn[0]))
 
         attr_indices, attr_in_product, unigram_indices, bigram_indices, char_trigram_indices = \
             convert_attrs(
@@ -232,24 +236,29 @@ class SemRankerTest(tf.test.TestCase):
             ["2.5 inch"], self.token_2_idx, self.zero_idx, 
             10, 10, 50, self.unknown_to_idx)
         
-        self.assertEqual(unigram_indices[0], u1[0])
-        self.assertEqual(bigram_indices[0], b1[0])
-        self.assertEqual(char_trigram_indices[0], c1[0])
+        self.assertEqual(list(unigram_indices[0]), list(u1[0]))
+        self.assertEqual(list(bigram_indices[0]), list(b1[0]))
+        self.assertEqual(list(char_trigram_indices[0]), list(c1[0]))
 
-        self.assertEqual(unigram_indices[1], u2[0])
-        self.assertEqual(bigram_indices[1], b2[0])
-        self.assertEqual(char_trigram_indices[1], c2[0])
+        self.assertEqual(list(unigram_indices[1]), list(u2[0]))
+        self.assertEqual(list(bigram_indices[1]), list(b2[0]))
+        self.assertEqual(list(char_trigram_indices[1]), list(c2[0]))
         
-        self.assertEqual(unigram_indices[-1], [self.zero_idx,]*10)
-        self.assertEqual(bigram_indices[-1], [self.zero_idx,]*10)
-        self.assertEqual(char_trigram_indices[-1], [self.zero_idx,]*50)
+        self.assertEqual(list(unigram_indices[-1]), [self.zero_idx,]*10)
+        self.assertEqual(list(bigram_indices[-1]), [self.zero_idx,]*10)
+        self.assertEqual(list(char_trigram_indices[-1]), [self.zero_idx,]*50)
 
     def create_placeholder_data(self):
         queries = list(map(lambda x: query_preprocessing(x), self.queries))
         product_names = list(map(lambda x: query_preprocessing(x.get("product_name")), self.products))
         brands = list(map(lambda x: query_preprocessing(x.get("brand")), self.products))
         authors = list(map(lambda x: " ".join([query_preprocessing(z) for z in x.get("author")]), self.products))
-
+        categories = list(map(lambda x: x.get('categories'), self.products))
+        attributes = list(map(lambda x: x.get('attributes'), self.products))
+        features = list(map(lambda x: [x.get(h) for h in self.header_fields], self.products))
+        precomputed_features_min = [self.feature_precomputed.get(h)[0] for h in self.header_fields]
+        precomputed_features_max = [self.feature_precomputed.get(h)[1] for h in self.header_fields]
+        
         max_query_length = self.max_query_length
         query_unigram_indices, query_bigram_indices, query_char_trigram_indices =  \
             convert_strings(
@@ -278,18 +287,40 @@ class SemRankerTest(tf.test.TestCase):
                 max_author_length, max_author_length, max_author_length*5, 
                 self.unknown_to_idx)
 
-        return np.asarray(query_unigram_indices, dtype=np.int32), \
-               np.asarray(query_bigram_indices, dtype=np.int32), \
-               np.asarray(query_char_trigram_indices, dtype=np.int32), \
-               np.asarray(product_unigram_indices, dtype=np.int32), \
-               np.asarray(product_bigram_indices, dtype=np.int32), \
-               np.asarray(product_char_trigram_indices, dtype=np.int32),\
-               np.asarray(brand_unigram_indices, dtype=np.int32), \
-               np.asarray(brand_bigram_indices, dtype=np.int32), \
-               np.asarray(brand_char_trigram_indices, dtype=np.int32), \
-               np.asarray(author_unigram_indices, dtype=np.int32), \
-               np.asarray(author_bigram_indices, dtype=np.int32), \
-               np.asarray(author_char_trigram_indices, dtype=np.int32)
+        max_cat_length = self.max_cat_length
+        cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices = \
+            convert_cats(
+                categories,
+                self.token_2_idx,
+                self.cat_token_2_idx,
+                self.zero_idx,
+                self.cat_zero_idx,
+                self.unknown_to_idx,
+                max_cat_length, max_cat_length, max_cat_length*5
+            )
+
+        max_attr_length = self.max_attr_length
+        attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices = \
+            convert_attrs(
+                attributes,
+                self.token_2_idx,
+                self.attr_token_2_idx,
+                self.zero_idx,
+                self.attr_zero_idx,
+                self.unknown_to_idx,
+                max_cat_length, max_cat_length, max_cat_length*5
+            )
+
+        features = convert_features(
+            features, precomputed_features_min, precomputed_features_max)
+
+        return query_unigram_indices, query_bigram_indices, query_char_trigram_indices, \
+               product_unigram_indices, product_bigram_indices, product_char_trigram_indices, \
+               brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, \
+               author_unigram_indices, author_bigram_indices, author_char_trigram_indices, \
+               cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices,\
+               attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices,\
+               features
 
     def init_graph(self):
         embed_size = self.embed_size
@@ -298,6 +329,8 @@ class SemRankerTest(tf.test.TestCase):
         max_product_length = self.max_product_length
         max_brand_length = self.max_brand_length
         max_author_length = self.max_author_length
+        max_cat_length = self.max_cat_length
+        max_attr_length = self.max_attr_length
 
         ranker = SemRanker(
             vocab_size=vocab_size,
@@ -305,6 +338,7 @@ class SemRankerTest(tf.test.TestCase):
             cat_tokens_size=len(self.cat_tokens),
             attr_tokens_size=len(self.attr_tokens),
             embed_size=embed_size,
+            attr_cat_embed_size=self.attr_cat_embed_size,
             filter_sizes=self.filter_sizes,
             max_query_length=max_query_length,
             max_product_name_length=self.max_product_length,
@@ -338,11 +372,38 @@ class SemRankerTest(tf.test.TestCase):
         author_char_trigram_indices = tf.placeholder(
             tf.int32, shape=[None, max_author_length*5], name="author_char_trigram_indices")
 
+        cat_unigram_indices = tf.placeholder(
+            tf.int32, shape=[None, max_cat_length], name="cat_unigram_indices")
+        cat_bigram_indices = tf.placeholder(
+            tf.int32, shape=[None, max_cat_length], name="cat_bigram_indices")
+        cat_char_trigram_indices = tf.placeholder(
+            tf.int32, shape=[None, max_cat_length*5], name="cat_char_trigram_indices")
+        cat_tokens = tf.placeholder(tf.int32, shape=[None,], name="cat_tokens")
+        cats_in_product = tf.placeholder(tf.int32, shape=[None,], name="cats_in_product")
+
+        attr_unigram_indices = tf.placeholder(
+            tf.int32, shape=[None, max_attr_length], name="attr_unigram_indices")
+        attr_bigram_indices = tf.placeholder(
+            tf.int32, shape=[None, max_attr_length], name="attr_bigram_indices")
+        attr_char_trigram_indices = tf.placeholder(
+            tf.int32, shape=[None, max_attr_length*5], name="attr_char_trigram_indices")
+        attr_tokens = tf.placeholder(tf.int32, shape=[None,], name="attr_tokens")
+        attrs_in_product = tf.placeholder(tf.int32, shape=[None,], name="attrs_in_product")
+
+        free_features = tf.placeholder(tf.float32, shape=[None, len(self.header_fields)], name="free_features")
+
         ranker(
             query_indices=[query_unigram_indices, query_bigram_indices, query_char_trigram_indices],
             product_name_indices=[product_unigram_indices, product_bigram_indices, product_char_trigram_indices],
             brand_indices=[brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices],
-            author_indices=[author_unigram_indices, author_bigram_indices, author_char_trigram_indices]
+            author_indices=[author_unigram_indices, author_bigram_indices, author_char_trigram_indices],
+            cat_indices=[cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices],
+            attr_indices=[attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices],
+            cat_tokens=cat_tokens,
+            attr_tokens=attr_tokens,
+            cats_in_product=cats_in_product,
+            attrs_in_product=attrs_in_product,
+            free_features=free_features
         )
 
         return {
@@ -357,13 +418,25 @@ class SemRankerTest(tf.test.TestCase):
             'brand_char_trigram_indices': brand_char_trigram_indices,
             'author_unigram_indices': author_unigram_indices,
             'author_bigram_indices': author_bigram_indices,
-            'author_char_trigram_indices': author_char_trigram_indices
+            'author_char_trigram_indices': author_char_trigram_indices,
+            'cat_unigram_indices': cat_unigram_indices,
+            'cat_bigram_indices': cat_bigram_indices,
+            'cat_char_trigram_indices': cat_char_trigram_indices,
+            'attr_unigram_indices': attr_unigram_indices,
+            'attr_bigram_indices': attr_bigram_indices,
+            'attr_char_trigram_indices': attr_char_trigram_indices,
+            'cat_tokens': cat_tokens,
+            'attr_tokens': attr_tokens,
+            'cats_in_product': cats_in_product,
+            'attrs_in_product': attrs_in_product,
+            'free_features': free_features
         }
 
     def testEmbeddingShapes(self):
         tf.reset_default_graph()
         self.init_graph()
-        embed_size = 80
+        embed_size = self.embed_size
+        attr_cat_embed_size = self.attr_cat_embed_size
         vocab_size = len(self.token_2_idx)
 
         init_op = tf.initializers.global_variables()
@@ -375,53 +448,71 @@ class SemRankerTest(tf.test.TestCase):
                 n_gram_embedding[vocab_size+self.unknown_bin:].flatten(), np.zeros([embed_size,]))
 
             cat_embedding = sess.run('embedding/zero_padding_cat_embedding:0')
-            self.assertEqual(cat_embedding.shape, (len(self.cat_tokens)+1, embed_size))
+            self.assertEqual(cat_embedding.shape, (len(self.cat_tokens)+1, attr_cat_embed_size))
             np.testing.assert_array_equal(
-                cat_embedding[len(self.cat_tokens):].flatten(), np.zeros([embed_size,]))
+                cat_embedding[len(self.cat_tokens):].flatten(), np.zeros([attr_cat_embed_size,]))
 
             attr_embedding = sess.run('embedding/zero_padding_attr_embedding:0')
-            self.assertEqual(attr_embedding.shape, (len(self.attr_tokens)+1, embed_size))
+            self.assertEqual(attr_embedding.shape, (len(self.attr_tokens)+1, attr_cat_embed_size))
             np.testing.assert_array_equal(
-                attr_embedding[len(self.attr_tokens):].flatten(), np.zeros([embed_size,]))
+                attr_embedding[len(self.attr_tokens):].flatten(), np.zeros([attr_cat_embed_size,]))
 
-    def testTextCNNLayer(self):
+    def testLayerShapes(self):
         tf.reset_default_graph()
         inputs = self.init_graph()
 
         query_unigram_indices, query_bigram_indices, query_char_trigram_indices, \
         product_unigram_indices, product_bigram_indices, product_char_trigram_indices, \
         brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, \
-        author_unigram_indices, author_bigram_indices, author_char_trigram_indices = \
-             self.create_placeholder_data()
+        author_unigram_indices, author_bigram_indices, author_char_trigram_indices, \
+        cat_tokens, cats_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices, \
+        attr_tokens, attrs_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices, \
+        free_features = \
+            self.create_placeholder_data()
 
         init_op = tf.initializers.global_variables()
         with self.cached_session() as sess:
             sess.run(init_op)
 
-            query_encode, product_encode, brand_encode, author_encode = sess.run([
-                'calc_embedding_feature/query_encode:0','calc_embedding_feature/product_encode:0',
-                'calc_embedding_feature/brand_encode:0','calc_embedding_feature/author_encode:0'], 
-                feed_dict={
-                    inputs['query_unigram_indices']: query_unigram_indices,
-                    inputs['query_bigram_indices']: query_bigram_indices,
-                    inputs['query_char_trigram_indices']: query_char_trigram_indices,
-                    inputs['product_unigram_indices']: product_unigram_indices,
-                    inputs['product_bigram_indices']: product_bigram_indices,
-                    inputs['product_char_trigram_indices']: product_char_trigram_indices,
-                    inputs['brand_unigram_indices']: brand_unigram_indices,
-                    inputs['brand_bigram_indices']: brand_bigram_indices,
-                    inputs['brand_char_trigram_indices']: brand_char_trigram_indices,
-                    inputs['author_unigram_indices']: author_unigram_indices,
-                    inputs['author_bigram_indices']: author_bigram_indices,
-                    inputs['author_char_trigram_indices']: author_char_trigram_indices
-                })
+            query_encode, product_name_encode, brand_encode, \
+            author_encode, category_encode, attribute_encode, product_encode = \
+                sess.run([
+                    'calc_embedding_feature/query_encode:0','calc_embedding_feature/product_name_encode:0',
+                    'calc_embedding_feature/brand_encode:0','calc_embedding_feature/author_encode:0',
+                    'calc_embedding_feature/category_encode:0','calc_embedding_feature/attribute_encode:0',
+                    'bn/product_encode:0'], 
+                    feed_dict={
+                        inputs['query_unigram_indices']: query_unigram_indices,
+                        inputs['query_bigram_indices']: query_bigram_indices,
+                        inputs['query_char_trigram_indices']: query_char_trigram_indices,
+                        inputs['product_unigram_indices']: product_unigram_indices,
+                        inputs['product_bigram_indices']: product_bigram_indices,
+                        inputs['product_char_trigram_indices']: product_char_trigram_indices,
+                        inputs['brand_unigram_indices']: brand_unigram_indices,
+                        inputs['brand_bigram_indices']: brand_bigram_indices,
+                        inputs['brand_char_trigram_indices']: brand_char_trigram_indices,
+                        inputs['author_unigram_indices']: author_unigram_indices,
+                        inputs['author_bigram_indices']: author_bigram_indices,
+                        inputs['author_char_trigram_indices']: author_char_trigram_indices,
+                        inputs['cat_tokens']: cat_tokens,
+                        inputs['cats_in_product']: cats_in_product,
+                        inputs['cat_unigram_indices']: cat_unigram_indices,
+                        inputs['cat_bigram_indices']: cat_bigram_indices,
+                        inputs['cat_char_trigram_indices']: cat_char_trigram_indices,
+                        inputs['attr_tokens']: attr_tokens,
+                        inputs['attrs_in_product']: attrs_in_product,
+                        inputs['attr_unigram_indices']: attr_unigram_indices,
+                        inputs['attr_bigram_indices']: attr_bigram_indices,
+                        inputs['attr_char_trigram_indices']: attr_char_trigram_indices,
+                        inputs['free_features']: free_features
+                    })
             self.assertEqual(
                 query_encode.shape, 
                 (len(self.queries), len(self.filter_sizes)*self.num_filters*3)
             )
 
             self.assertEqual(
-                product_encode.shape, 
+                product_name_encode.shape, 
                 (len(self.products), len(self.filter_sizes)*self.num_filters*3)
             )
 
@@ -433,6 +524,24 @@ class SemRankerTest(tf.test.TestCase):
             self.assertEqual(
                 author_encode.shape, 
                 (len(self.products), len(self.filter_sizes)*self.num_filters*3)
+            )
+
+            self.assertEqual(
+                category_encode.shape, 
+                (len(self.products), (len(self.filter_sizes)*self.num_filters + self.attr_cat_embed_size)*3)
+            )
+
+            self.assertEqual(
+                attribute_encode.shape, 
+                (len(self.products), (len(self.filter_sizes)*self.num_filters + self.attr_cat_embed_size)*3)
+            )
+
+            self.assertEqual(
+                product_encode.shape, 
+                (len(self.products), product_name_encode.shape[1] + 
+                                brand_encode.shape[1] + author_encode.shape[1] + 
+                                category_encode.shape[1] + attribute_encode.shape[1] + 
+                                free_features.shape[1])
             )
 
 if __name__ == "__main__":
