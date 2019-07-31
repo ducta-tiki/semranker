@@ -97,7 +97,7 @@ class SemRanker(object):
         with tf.variable_scope("embedding"):
             ngram_embed_weights = tf.get_variable(
                 'n_gram_embedding', [self.vocab_size+self.unknown_bin, self.embed_size],
-                initializer=tf.random_normal_initializer(mean=0, stddev=0.01)
+                initializer=tf.random_uniform_initializer(minval=-1., maxval=1.)
             )
             zero_vector_ngram = tf.zeros([1, self.embed_size], dtype=tf.float32)
             ngram_embed_weights = tf.concat(
@@ -177,21 +177,19 @@ class SemRanker(object):
             product_features = tf.identity(product_features, name="product_encode")
 
             query_features = tf.layers.batch_normalization(
-                                query_features, training=training)
+                                embed_queries, training=training)
             query_features = tf.nn.tanh(query_features)
             query_features = tf.identity(query_features, name="query_features")
 
         with tf.variable_scope("dense"):
             v1 = tf.layers.dense(
                 product_features,
-                units=self.num_filters * len(self.filter_sizes),
+                units=self.num_filters * len(self.filter_sizes) * 3,
                 kernel_initializer=tf.random_normal_initializer(mean=0, stddev=0.01),
                 activation=tf.nn.tanh
             )
-        with tf.name_scope("rank"):
-            s = tf.losses.cosine_distance(
-                    tf.nn.l2_normalize(v1, 1), 
-                    tf.nn.l2_normalize(query_features, 1), 
-                axis=1, name="score")
+        s = tf.nn.l2_normalize(v1, 1) * tf.nn.l2_normalize(query_features, 1)
+        s = tf.reduce_sum(s, axis=1)
+        s = tf.identity(s, name="score")
 
         return s

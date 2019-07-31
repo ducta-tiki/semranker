@@ -3,6 +3,7 @@ import numpy as np
 from vn_lang import query_preprocessing
 from reader.convert import convert_strings, create_ngrams, convert_cats, convert_attrs, convert_features
 from model.semranker import SemRanker
+from model.loss import semranker_loss
 import pyhash
 
 
@@ -67,8 +68,8 @@ class SemRankerTest(tf.test.TestCase):
         }
 
         self.products = [p1, p2, p3]
-        self.queries = ['ổ cứng', 'vở tập tô', 'ốp lưng']
-        self.target = [0, 1, 2]
+        self.queries = ['ổ cứng', 'samsung 850', 'vở tập tô']
+        self.target = [2, 1, 0] # positive, impressed, negative
 
         for p in self.products:
             self.add_to_vocab(query_preprocessing(p['product_name']))
@@ -392,7 +393,7 @@ class SemRankerTest(tf.test.TestCase):
 
         free_features = tf.placeholder(tf.float32, shape=[None, len(self.header_fields)], name="free_features")
 
-        ranker(
+        score = ranker(
             query_indices=[query_unigram_indices, query_bigram_indices, query_char_trigram_indices],
             product_name_indices=[product_unigram_indices, product_bigram_indices, product_char_trigram_indices],
             brand_indices=[brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices],
@@ -429,7 +430,8 @@ class SemRankerTest(tf.test.TestCase):
             'attr_tokens': attr_tokens,
             'cats_in_product': cats_in_product,
             'attrs_in_product': attrs_in_product,
-            'free_features': free_features
+            'free_features': free_features,
+            'score': score
         }
 
     def testEmbeddingShapes(self):
@@ -475,12 +477,13 @@ class SemRankerTest(tf.test.TestCase):
             sess.run(init_op)
 
             query_encode, product_name_encode, brand_encode, \
-            author_encode, category_encode, attribute_encode, product_encode = \
+            author_encode, category_encode, attribute_encode, \
+            product_encode, score = \
                 sess.run([
                     'calc_embedding_feature/query_encode:0','calc_embedding_feature/product_name_encode:0',
                     'calc_embedding_feature/brand_encode:0','calc_embedding_feature/author_encode:0',
                     'calc_embedding_feature/category_encode:0','calc_embedding_feature/attribute_encode:0',
-                    'bn/product_encode:0'], 
+                    'bn/product_encode:0', 'score:0'], 
                     feed_dict={
                         inputs['query_unigram_indices']: query_unigram_indices,
                         inputs['query_bigram_indices']: query_bigram_indices,
@@ -543,6 +546,68 @@ class SemRankerTest(tf.test.TestCase):
                                 category_encode.shape[1] + attribute_encode.shape[1] + 
                                 free_features.shape[1])
             )
+
+            self.assertEqual(score.shape, (len(self.products),))
+
+    def testOverfit(self):
+        tf.reset_default_graph()
+        inputs = self.init_graph()
+
+        loss = semranker_loss(self.target, inputs['score'])
+
+        global_step = tf.train.get_or_create_global_step()
+        opt = tf.train.MomentumOptimizer(
+            learning_rate=0.1,
+            momentum=0.9
+        )
+        grads = opt.compute_gradients(loss)
+        train_op = opt.apply_gradients(grads, global_step=global_step)
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        train_op = tf.group([train_op, update_ops])
+
+        query_unigram_indices, query_bigram_indices, query_char_trigram_indices, \
+        product_unigram_indices, product_bigram_indices, product_char_trigram_indices, \
+        brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, \
+        author_unigram_indices, author_bigram_indices, author_char_trigram_indices, \
+        cat_tokens, cats_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices, \
+        attr_tokens, attrs_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices, \
+        free_features = \
+            self.create_placeholder_data()
+
+        init_op = tf.initializers.global_variables()
+        with self.cached_session() as sess:
+            sess.run(init_op)
+
+            max_iter = 100
+            for _ in range(max_iter):
+                _, ret_loss, ret_score = sess.run([train_op, loss, inputs['score']], 
+                    feed_dict={
+                        inputs['query_unigram_indices']: query_unigram_indices,
+                        inputs['query_bigram_indices']: query_bigram_indices,
+                        inputs['query_char_trigram_indices']: query_char_trigram_indices,
+                        inputs['product_unigram_indices']: product_unigram_indices,
+                        inputs['product_bigram_indices']: product_bigram_indices,
+                        inputs['product_char_trigram_indices']: product_char_trigram_indices,
+                        inputs['brand_unigram_indices']: brand_unigram_indices,
+                        inputs['brand_bigram_indices']: brand_bigram_indices,
+                        inputs['brand_char_trigram_indices']: brand_char_trigram_indices,
+                        inputs['author_unigram_indices']: author_unigram_indices,
+                        inputs['author_bigram_indices']: author_bigram_indices,
+                        inputs['author_char_trigram_indices']: author_char_trigram_indices,
+                        inputs['cat_tokens']: cat_tokens,
+                        inputs['cats_in_product']: cats_in_product,
+                        inputs['cat_unigram_indices']: cat_unigram_indices,
+                        inputs['cat_bigram_indices']: cat_bigram_indices,
+                        inputs['cat_char_trigram_indices']: cat_char_trigram_indices,
+                        inputs['attr_tokens']: attr_tokens,
+                        inputs['attrs_in_product']: attrs_in_product,
+                        inputs['attr_unigram_indices']: attr_unigram_indices,
+                        inputs['attr_bigram_indices']: attr_bigram_indices,
+                        inputs['attr_char_trigram_indices']: attr_char_trigram_indices,
+                        inputs['free_features']: free_features
+                    })
+
+                print("Loss:%0.4f" % float(ret_loss), list(ret_score))
 
 if __name__ == "__main__":
     tf.test.main()
