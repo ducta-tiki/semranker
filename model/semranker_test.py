@@ -309,7 +309,7 @@ class SemRankerTest(tf.test.TestCase):
                 self.zero_idx,
                 self.attr_zero_idx,
                 self.unknown_to_idx,
-                max_cat_length, max_cat_length, max_cat_length*5
+                max_attr_length, max_attr_length, max_attr_length*5
             )
 
         features = convert_features(
@@ -342,7 +342,9 @@ class SemRankerTest(tf.test.TestCase):
             attr_cat_embed_size=self.attr_cat_embed_size,
             filter_sizes=self.filter_sizes,
             max_query_length=max_query_length,
-            max_product_name_length=self.max_product_length,
+            max_product_name_length=max_product_length,
+            max_brand_length=max_brand_length,
+            max_author_length=max_author_length,
             max_attr_length=self.max_attr_length,
             max_cat_length=self.max_cat_length, 
             num_filters=self.num_filters
@@ -579,6 +581,7 @@ class SemRankerTest(tf.test.TestCase):
             sess.run(init_op)
 
             max_iter = 100
+            ret_loss, ret_score =  [], []
             for _ in range(max_iter):
                 _, ret_loss, ret_score = sess.run([train_op, loss, inputs['score']], 
                     feed_dict={
@@ -608,6 +611,7 @@ class SemRankerTest(tf.test.TestCase):
                     })
 
                 print("Loss:%0.4f" % float(ret_loss), list(ret_score))
+            self.assertGreaterEqual(ret_score[0], 0.9)
 
 if __name__ == "__main__":
     tf.test.main()

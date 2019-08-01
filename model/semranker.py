@@ -167,6 +167,10 @@ class SemRanker(object):
                 embed_attr.append(attr_z_cnn)
             embed_attr = tf.concat(embed_attr, axis=1, name="attribute_encode")
 
+            embed_cat = tf.reshape(embed_cat, 
+                [-1, (len(self.filter_sizes)*self.num_filters + self.attr_cat_embed_size)*3])
+            embed_attr= tf.reshape(embed_cat, 
+                [-1, (len(self.filter_sizes)*self.num_filters + self.attr_cat_embed_size)*3])
             product_features = tf.concat([
                 embed_product_names, embed_brand, embed_author, embed_cat, embed_attr, free_features
             ], axis=1)
