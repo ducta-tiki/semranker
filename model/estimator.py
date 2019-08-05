@@ -1,6 +1,5 @@
 import tensorflow as tf
 from model.loss import semranker_loss
-from model.export import SCORE
 from model.semranker import SemRanker
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -69,10 +68,12 @@ def semranker_fn(features, labels, mode, params):
                 learning_rate=learning_rate,
                 momentum=pconfig.get('momentum', 0.9)
             )
-
+            #opt = tf.train.AdamOptimizer(
+            #    learning_rate=learning_rate
+            #)
             tensors_to_log = {'learning_rate': learning_rate, 'loss': loss}
             logging_hook = tf.train.LoggingTensorHook(
-                tensors=tensors_to_log, every_n_iter=pconfig.get('step_print_logs', 50))
+                tensors=tensors_to_log, every_n_iter=pconfig.get('step_print_logs', 5))
             training_hooks = [logging_hook]
 
             grads = opt.compute_gradients(loss)

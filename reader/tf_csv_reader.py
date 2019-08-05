@@ -2,16 +2,17 @@ import tensorflow as tf
 import pyhash
 import csv
 import json
+import random
 from random import randint
 import numpy as np
 from reader.sqlite_product import create_connection, get_product, get_fields
 from reader.convert import convert_strings, convert_cats, convert_attrs, convert_features
 from vn_lang import query_preprocessing
-
+import time
 
 class CsvSemRankerReader(object):
     def __init__(
-        self, pos_path, zero_path, neg_path,
+        self, pair_path,
         precomputed_path,
         product_db,
         vocab_path,
@@ -76,45 +77,29 @@ class CsvSemRankerReader(object):
         self.hasher = pyhash.murmur3_32()
 
         # initialize sampling pools
-        self.pos_path = pos_path
-        self.zero_path = zero_path
-        self.neg_path = neg_path
+        self.pair_path = pair_path
         self.precomputed_path = precomputed_path
 
-        self.pos_pool = []
-        self.zero_pool = []
-        self.neg_pool = []
+        self.pair_pool = []
 
-        pos_fobj = open(pos_path, 'r')
-        pos_reader = csv.reader(pos_fobj)
 
-        zero_fobj = open(zero_path, 'r')
-        zero_reader = csv.reader(zero_fobj)
+        pair_fobj = open(pair_path, 'r')
+        pair_reader = csv.reader(pair_fobj)
 
-        neg_fobj = open(neg_path, 'r')
-        neg_reader = csv.reader(neg_fobj)
-
-        for reader, pool, label in zip(
-            [self.pos_pool, self.zero_pool, self.neg_pool], 
-            [pos_reader, zero_reader, neg_reader], [2, 1, 0]):
-            for r in reader:
-                if len(pool) < 10000:
-                    pool.insert(randint(0, len(pool)), [r[0], r[1], label])
-                else:
-                    break
-        pos_fobj.close(); zero_fobj.close(); neg_fobj.close()
+        for r in pair_reader:
+            if len(self.pair_pool) < 10000:
+                keyword = r[0]
+                self.pair_pool.insert(randint(0, len(self.pair_pool)), [keyword, r[1]])
+            else:
+                break
+        
+        pair_fobj.close()
 
         self.conn = create_connection(product_db)
         self.headers = get_fields(self.conn)
 
-        self.pos_data = tf.contrib.data.CsvDataset(
-            filenames=[self.pos_path],
-            record_defaults=[tf.string, tf.string])
-        self.neg_data = tf.contrib.data.CsvDataset(
-            filenames=[self.neg_path],
-            record_defaults=[tf.string, tf.string])
-        self.zero_data = tf.contrib.data.CsvDataset(
-            filenames=[self.zero_path],
+        self.pair_data = tf.contrib.data.CsvDataset(
+            filenames=[self.pair_path],
             record_defaults=[tf.string, tf.string])
 
     def unknown_to_idx(self, unknown):
@@ -137,31 +122,45 @@ class CsvSemRankerReader(object):
         return None
 
     def _wrapper_map(self):
-        def _map_to_indices(batch_pos, batch_zero, batch_neg):
-            z = lambda obj, label: [[x.decode(), y.decode(), label] for x, y in zip(list(obj[0]), list(obj[1]))]
-            pos = batch_pos.numpy(); pos = z(pos, 2)
-            zero = batch_zero.numpy(); zero = z(zero, 1)
-            neg = batch_neg.numpy(); neg = z(neg, 0)
-
-            new_pos = []
-            new_zero = []
-            new_neg = []
-            for pool, new_batch, new_store in zip(
-                [self.pos_pool, self.zero_pool, self.neg_pool], 
-                [pos, zero, neg], [new_pos, new_zero, new_neg]):
-                for s in new_batch:
-                    pool.insert(randint(0, len(pool)), s)
-                for i in range(len(pos)):
-                    new_store.append(pool.pop())
-            products = []
+        def _map_to_indices(pair_batch):
             queries = []
             labels = []
-            for sample in pos + zero + neg:
-                product = self.get_product(sample[1])
-                if product:
-                    queries.append(sample[0])
-                    products.append(product)
-                    labels.append(sample[2])
+            products = []
+            pair_batch = pair_batch.numpy()
+            
+            for pairs in zip(*pair_batch):
+                keyword = pairs[0].decode()
+                r1 = pairs[1].decode()
+                self.pair_pool.insert(randint(0, len(self.pair_pool)), [keyword, r1])
+            
+            for _ in range(20):
+                keyword, r1 = self.pair_pool.pop()
+                # print(keyword, r1)
+                pk = r1.split("|")
+                pnk = [z.split("#") for z in pk]
+                pos = []
+                zero = []
+                neg = []
+                for p in pnk:
+                    if p[1] == '2':
+                        pos.append(p[0])
+                    elif p[1] == '1':
+                        zero.append(p[0])
+                    else:
+                        neg.append(p[0])
+                n = len(pos)
+                if n == 0: n = 1
+                zero = random.sample(zero, min(len(zero),n*7))[:10]
+                neg = random.sample(neg, min(len(neg), n*8))[:15]
+
+                for samples, l in zip([pos, zero, neg], [2,1,0]):
+                    for s in samples:
+                        product = self.get_product(s)
+                        if product:
+                            queries.append(keyword)
+                            products.append(product)
+                            labels.append(l)
+
             product_names = list(map(lambda x: query_preprocessing(x.get("name")), products))
             brands = list(map(lambda x: query_preprocessing(x.get("brand")), products))
             authors = list(map(lambda x: " ".join([query_preprocessing(z) for z in x.get("author")]), products))
@@ -232,23 +231,13 @@ class CsvSemRankerReader(object):
 
     def get_batch(self, batch_size):
         with tf.device('/device:CPU:*'):
-            pos_dataset = self.pos_data.batch(batch_size)
-            pos_dataset = pos_dataset.repeat(None)
-            iterator = pos_dataset.make_one_shot_iterator()
-            next_pos_batch = iterator.get_next()
-
-            zero_dataset = self.zero_data.batch(batch_size)
-            zero_dataset = zero_dataset.repeat(None)
-            iterator = zero_dataset.make_one_shot_iterator()
-            next_zero_batch = iterator.get_next()
-
-            neg_dataset = self.neg_data.batch(batch_size)
-            neg_dataset = neg_dataset.repeat(None)
-            iterator = neg_dataset.make_one_shot_iterator()
-            next_neg_batch = iterator.get_next()
+            pair_dataset = self.pair_data.batch(batch_size)
+            pair_dataset = pair_dataset.repeat(None)
+            iterator = pair_dataset.make_one_shot_iterator()
+            next_pair_batch = iterator.get_next()
 
             next_batch = tf.py_function(
-                self._wrapper_map(), [next_pos_batch, next_zero_batch, next_neg_batch], 
+                self._wrapper_map(), [next_pair_batch], 
                 [
                     tf.int32, tf.int32, tf.int32, # query_unigram_indices, query_bigram_indices, query_char_trigram_indices
                     tf.int32, tf.int32, tf.int32, # product_unigram_indices, product_bigram_indices, product_char_trigram_indices

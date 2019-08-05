@@ -1,1 +1,0 @@
-SCORE = 'score:0'

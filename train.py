@@ -2,11 +2,10 @@ import tensorflow as tf
 from reader.tf_csv_reader import CsvSemRankerReader
 from model.estimator import semranker_fn
 
+
 def main():    
     reader = CsvSemRankerReader(
-        pos_path="triples/positives.csv",
-        zero_path="triples/negatives.csv",
-        neg_path="triples/impressions.csv",
+        pair_path="pairs.csv",
         precomputed_path="meta/precomputed.json",
         product_db="db/tiki-products.db",
         vocab_path="meta/vocab.txt",
@@ -25,7 +24,7 @@ def main():
         'unknown_bin': reader.unknown_bin,
         'cat_tokens_size': reader.cat_tokens_size,
         'attr_tokens_size': reader.attr_tokens_size,
-        'embed_size': 50,
+        'embed_size': 80,
         'attr_cat_embed_size': 10,
         'filter_sizes': [2,3,4,5],
         'max_query_length': reader.maximums_query[0],
@@ -34,22 +33,22 @@ def main():
         'max_author_length': reader.maximums_author[0],
         'max_cat_length': reader.maximums_cat[0],
         'max_attr_length': reader.maximums_attr[0],
-        'num_filters': 5
+        'num_filters': 10
     }
 
     pconfig = {
-        'init_learning_rate': 0.1,
-        'step_change_learning_rate': 10000,
+        'init_learning_rate': 0.01,
+        'step_change_learning_rate': 100000,
         'decay_learning_rate_ratio': 0.9,
         'momentum': 0.9,
-        'step_print_logs': 50,
-        'batch_size': 40,
-        'max_steps': 200000,
-        'save_checkpoint_steps': 200,
+        'step_print_logs': 5,
+        'batch_size': 20,
+        'max_steps': 4000000,
+        'save_checkpoint_steps': 1000,
         'keep_checkpoint_max': 10
     }
 
-    params = {'model': mconfig, 'train': pconfig, 'using_gpu': False}
+    params = {'model': mconfig, 'train': pconfig, 'using_gpu': True}
 
     session_config = tf.ConfigProto(
         allow_soft_placement=True,

@@ -3,7 +3,7 @@ import tensorflow as tf
 EPSILON_POS = 0.9
 EPSILON_NEG = 0.2
 EPSILON_ZERO = 0.55
-POWER_M = 1.5
+POWER_M = 2
 
 
 def semranker_loss(target_indices, predicted_scores):
