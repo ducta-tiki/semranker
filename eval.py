@@ -1,6 +1,8 @@
 import csv
 from predict import SemRankerPredict
 from ndcg import ndcg
+from vn_lang import query_preprocessing
+import re
 
 file_paths = [
     "product_impressions/product_impressions_20190803_000000000000.csv",
@@ -16,7 +18,9 @@ for file_path in file_paths:
     with open(file_path, 'r') as fobj:
         for r in csv.DictReader(fobj):
             if r.get('product_id'):
-                query = r.get('keyword')
+                query = query_preprocessing(r.get('keyword'))
+                if re.match(r'\d{6,}', query):
+                    continue
                 product_id = int(r.get('product_id'))
                 action = r.get('action')
                 rel = 1
@@ -45,6 +49,11 @@ ndcg_value = 0.
 total_queries = len(dict_q)
 print("Total queries: %d" % total_queries)
 count = 0
+
+f1 = open("greater_0.7.txt", "w")
+f2 = open("between_0.6-0.7.txt", "w")
+f3 = open("lower_0.6.txt", "w")
+
 for query, z in dict_q.items():
     if len(z) == 0:
         continue
@@ -73,12 +82,24 @@ for query, z in dict_q.items():
     sorted_products = sorted(ret_products, key=lambda x: x.get('score'), reverse=True)
 
     ret_ndcg = ndcg(range(1, len(sorted_products)+1), [x['rel'] for x in sorted_products])
+    
     if ret_ndcg > 0.:
+        if ret_ndcg > 0.7:
+            f1.write(query + "\n")
+        if ret_ndcg <= 0.7 and ret_ndcg > 0.6:
+            f2.write(query + "\n")
+        if ret_ndcg <= 0.6:
+            f3.write(query + "\n")
         count += 1
         cum_ndcg += ret_ndcg
         if count % 200 == 0 :
             print("Processed %d queries, ndcg: %0.4f" % (count, cum_ndcg/count))
-
+            f1.flush()
+            f2.flush()
+            f3.flush()
     if count > 1000:
         break
 print("NDCG: %0.4f" % (cum_ndcg/count))
+f1.close()
+f2.close()
+f3.close()

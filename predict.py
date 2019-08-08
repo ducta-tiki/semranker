@@ -206,19 +206,24 @@ if __name__ == "__main__":
 
     import requests
     from pprint import pprint
-    #query = "từ điển điện tử"
-    #query = "tv"
+    # query = "từ điển điện tử"
+    # query = "tv"
     # query = "iphone màu đen"
     # query = "apple watch"
-    #query = "realme 3 pro"
+    # query = "realme 3 pro"
     # query = "chuột dây"
     # query = 'xiaomi'
     # query = 'innis free'
-    query = 'máy rung'
+    # query = 'máy rung'
     # query = 'dày nữ'
-    # query = 'sac du phong iphone'
+    #query = 'sac du phong iphone'
     #query = 'ma đạo tổ sư đam mỹ'
-    resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=200" % query)
+    # query = 'ủng đi mưa'
+    # query = 'đàm thaoij tiếng trung ngành nhà hàng'
+    # query = 'vinamil'
+    # query = 'lược sử hacker'
+    query = 'gel xoa tham quang mat'
+    resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=500" % query)
     products = list(map(lambda x: x.get("id"), json.loads(resp.text)['data']['data']))
     pred_score, ret_products = predictor.fit(query, products)
 

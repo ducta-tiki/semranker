@@ -51,7 +51,7 @@ def main():
         'unknown_bin': reader.unknown_bin,
         'cat_tokens_size': reader.cat_tokens_size,
         'attr_tokens_size': reader.attr_tokens_size,
-        'embed_size': 80,
+        'embed_size': 100,
         'attr_cat_embed_size': 10,
         'filter_sizes': [2,3,4,5],
         'max_query_length': reader.maximums_query[0],
@@ -60,7 +60,7 @@ def main():
         'max_author_length': reader.maximums_author[0],
         'max_cat_length': reader.maximums_cat[0],
         'max_attr_length': reader.maximums_attr[0],
-        'num_filters': 10
+        'num_filters': 20
     }
 
     receiver_tensors = {

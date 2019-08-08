@@ -80,21 +80,6 @@ class CsvSemRankerReader(object):
         self.pair_path = pair_path
         self.precomputed_path = precomputed_path
 
-        self.pair_pool = []
-
-
-        pair_fobj = open(pair_path, 'r')
-        pair_reader = csv.reader(pair_fobj)
-
-        for r in pair_reader:
-            if len(self.pair_pool) < 10000:
-                keyword = r[0]
-                self.pair_pool.insert(randint(0, len(self.pair_pool)), [keyword, r[1]])
-            else:
-                break
-        
-        pair_fobj.close()
-
         self.conn = create_connection(product_db)
         self.headers = get_fields(self.conn)
 
@@ -131,11 +116,6 @@ class CsvSemRankerReader(object):
             for pairs in zip(*pair_batch):
                 keyword = pairs[0].decode()
                 r1 = pairs[1].decode()
-                self.pair_pool.insert(randint(0, len(self.pair_pool)), [keyword, r1])
-            
-            for _ in range(20):
-                keyword, r1 = self.pair_pool.pop()
-                # print(keyword, r1)
                 pk = r1.split("|")
                 pnk = [z.split("#") for z in pk]
                 pos = []
@@ -150,8 +130,8 @@ class CsvSemRankerReader(object):
                         neg.append(p[0])
                 n = len(pos)
                 if n == 0: n = 1
-                zero = random.sample(zero, min(len(zero),n*7))[:10]
-                neg = random.sample(neg, min(len(neg), n*8))[:15]
+                zero = random.sample(zero, min(len(zero),n*7))
+                neg = random.sample(neg, min(len(neg), n*8))[:20]
 
                 for samples, l in zip([pos, zero, neg], [2,1,0]):
                     for s in samples:

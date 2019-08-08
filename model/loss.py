@@ -15,6 +15,6 @@ def semranker_loss(target_indices, predicted_scores):
 
     l = tf.concat([l_neg, l_zero, l_pos], axis=1) * oh
 
-    loss = tf.reduce_sum(tf.reduce_mean(l, axis=0))
+    loss = tf.reduce_sum(l)/100.
 
     return loss
