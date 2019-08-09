@@ -25,11 +25,15 @@ public class Converter {
 
         for(String[] tokens: arrTokens){
             List<Integer> indices = new ArrayList<>();
-            String[] truncatedTokens = Arrays.copyOfRange(tokens, 0, maxSeqLen);
-            String[] zeroPadding = new String[Math.max(token2Idx.size(), maxSeqLen) - token2Idx.size()];
-            Arrays.fill(zeroPadding, "<zero>");
-            truncatedTokens = (String[])ArrayUtils.add(truncatedTokens, zeroPadding);
-            for(String t: truncatedTokens){
+            String[] paddedTokens = new String[maxSeqLen];
+            Arrays.fill(paddedTokens, "<zero>");
+
+            for(int i=0; i< Math.min(tokens.length, maxSeqLen); i++){
+                paddedTokens[i] = tokens[i];
+            }
+
+            for(String t: paddedTokens){
+                System.out.println(t);
                 if(this.token2Idx.containsKey(t)){
                     indices.add(this.token2Idx.get(t));
                 }else if(t.equals("<zero>")){
