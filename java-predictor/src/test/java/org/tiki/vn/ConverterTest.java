@@ -16,6 +16,8 @@ public class ConverterTest {
     Map<String, Integer> attr2Idx = null;
     int zeroIdx = 0;
 
+    int fiveUknownIdx = 0;
+
     @Before
     public void setUp(){
         token2Idx = new HashMap<>();
@@ -49,7 +51,9 @@ public class ConverterTest {
                 token2Idx, cat2Idx, attr2Idx,
                 token2Idx.size()+unknownBin, cat2Idx.size(), attr2Idx.size(),
                 unknownBin);
-        int zeroIdx = token2Idx.size() + unknownBin;
+        zeroIdx = token2Idx.size() + unknownBin;
+
+        fiveUknownIdx = token2Idx.size()+Hash.token2UnknownIdx("five", unknownBin);
     }
 
     @Test
@@ -76,7 +80,7 @@ public class ConverterTest {
         assertEquals(indices[2].length, maxSeqLen);
         assertArrayEquals(indices[2],
                 new int[]{token2Idx.get("zero"), token2Idx.get("one"), token2Idx.get("two"), token2Idx.get("three"),
-                        token2Idx.size()+Hash.token2UnknownIdx("five", unknownBin), zeroIdx, zeroIdx});
+                        fiveUknownIdx, zeroIdx, zeroIdx});
 
     }
 
@@ -103,7 +107,8 @@ public class ConverterTest {
                 5, 5, 25);
 
         assertEquals(nGramIndices.unigramsIndices.length, 2);
-        assertArrayEquals(nGramIndices.unigramsIndices[0], new int[]{0, 1, 2, 3, 4});
+        assertArrayEquals(nGramIndices.unigramsIndices[0], new int[]{
+                token2Idx.get("zero"), token2Idx.get("one"), token2Idx.get("two"), token2Idx.get("three"), token2Idx.get("four")});
 
     }
 
