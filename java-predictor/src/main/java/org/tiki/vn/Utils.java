@@ -5,7 +5,9 @@ import org.tensorflow.framework.MetaGraphDef;
 import org.tensorflow.framework.SignatureDef;
 import org.tensorflow.framework.TensorInfo;
 
+import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class Utils {
     public static void printSignature(SavedModelBundle model) throws Exception {
@@ -31,5 +33,11 @@ public class Utils {
                     i++, numOutputs, entry.getKey(), t.getName(), t.getDtype());
         }
         System.out.println("-----------------------------------------------");
+    }
+
+    public static String join(Collection<?> collection, String delimiter) {
+        return collection.stream()
+                .map( Object::toString )
+                .collect( Collectors.joining(delimiter));
     }
 }

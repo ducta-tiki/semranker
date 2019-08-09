@@ -43,7 +43,7 @@ def create_ngrams(s):
             for i in range(0, max(len(z)-2, 1)):
                 v = z[i:i+3]
                 char_trigrams.append(v)
-
+                                        
     for i in range(0, max(len(tokens) - 1, 0)):
         t = "%s#%s" % (tokens[i], tokens[i+1])
         bigrams.append(t)
