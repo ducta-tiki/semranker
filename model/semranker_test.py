@@ -395,21 +395,7 @@ class SemRankerTest(tf.test.TestCase):
 
         free_features = tf.placeholder(tf.float32, shape=[None, len(self.header_fields)], name="free_features")
 
-        score = ranker(
-            query_indices=[query_unigram_indices, query_bigram_indices, query_char_trigram_indices],
-            product_name_indices=[product_unigram_indices, product_bigram_indices, product_char_trigram_indices],
-            brand_indices=[brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices],
-            author_indices=[author_unigram_indices, author_bigram_indices, author_char_trigram_indices],
-            cat_indices=[cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices],
-            attr_indices=[attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices],
-            cat_tokens=cat_tokens,
-            attr_tokens=attr_tokens,
-            cats_in_product=cats_in_product,
-            attrs_in_product=attrs_in_product,
-            free_features=free_features
-        )
-
-        return {
+        inputs = {
             'query_unigram_indices': query_unigram_indices,
             'query_bigram_indices': query_bigram_indices,
             'query_char_trigram_indices': query_char_trigram_indices,
@@ -430,11 +416,18 @@ class SemRankerTest(tf.test.TestCase):
             'attr_char_trigram_indices': attr_char_trigram_indices,
             'cat_tokens': cat_tokens,
             'attr_tokens': attr_tokens,
-            'cats_in_product': cats_in_product,
-            'attrs_in_product': attrs_in_product,
-            'free_features': free_features,
-            'score': score
+            'cat_in_product': cats_in_product,
+            'attr_in_product': attrs_in_product,
+            'features': free_features,
         }
+
+        score = ranker(
+            **inputs
+        )
+
+        inputs['number_of_queries'] = 3
+        inputs['score'] = score
+        return inputs
 
     def testEmbeddingShapes(self):
         tf.reset_default_graph()
@@ -500,16 +493,16 @@ class SemRankerTest(tf.test.TestCase):
                         inputs['author_bigram_indices']: author_bigram_indices,
                         inputs['author_char_trigram_indices']: author_char_trigram_indices,
                         inputs['cat_tokens']: cat_tokens,
-                        inputs['cats_in_product']: cats_in_product,
+                        inputs['cat_in_product']: cats_in_product,
                         inputs['cat_unigram_indices']: cat_unigram_indices,
                         inputs['cat_bigram_indices']: cat_bigram_indices,
                         inputs['cat_char_trigram_indices']: cat_char_trigram_indices,
                         inputs['attr_tokens']: attr_tokens,
-                        inputs['attrs_in_product']: attrs_in_product,
+                        inputs['attr_in_product']: attrs_in_product,
                         inputs['attr_unigram_indices']: attr_unigram_indices,
                         inputs['attr_bigram_indices']: attr_bigram_indices,
                         inputs['attr_char_trigram_indices']: attr_char_trigram_indices,
-                        inputs['free_features']: free_features
+                        inputs['features']: free_features
                     })
             self.assertEqual(
                 query_encode.shape, 
@@ -555,7 +548,7 @@ class SemRankerTest(tf.test.TestCase):
         tf.reset_default_graph()
         inputs = self.init_graph()
 
-        loss = semranker_loss(self.target, inputs['score'])
+        loss = semranker_loss(self.target, inputs['score'] , tf.cast(inputs['number_of_queries'], tf.float32))
 
         global_step = tf.train.get_or_create_global_step()
         opt = tf.train.MomentumOptimizer(
@@ -598,16 +591,16 @@ class SemRankerTest(tf.test.TestCase):
                         inputs['author_bigram_indices']: author_bigram_indices,
                         inputs['author_char_trigram_indices']: author_char_trigram_indices,
                         inputs['cat_tokens']: cat_tokens,
-                        inputs['cats_in_product']: cats_in_product,
+                        inputs['cat_in_product']: cats_in_product,
                         inputs['cat_unigram_indices']: cat_unigram_indices,
                         inputs['cat_bigram_indices']: cat_bigram_indices,
                         inputs['cat_char_trigram_indices']: cat_char_trigram_indices,
                         inputs['attr_tokens']: attr_tokens,
-                        inputs['attrs_in_product']: attrs_in_product,
+                        inputs['attr_in_product']: attrs_in_product,
                         inputs['attr_unigram_indices']: attr_unigram_indices,
                         inputs['attr_bigram_indices']: attr_bigram_indices,
                         inputs['attr_char_trigram_indices']: attr_char_trigram_indices,
-                        inputs['free_features']: free_features
+                        inputs['features']: free_features
                     })
 
                 print("Loss:%0.4f" % float(ret_loss), list(ret_score))

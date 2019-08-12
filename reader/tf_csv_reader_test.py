@@ -28,8 +28,10 @@ class CsvSemRankerReaderTest(tf.test.TestCase):
         with self.cached_session() as sess:
             for _ in range(3):
                 results = sess.run(tensors)
-                print(results[2])
 
+                inputs = results[0]
+                print(inputs)
+                labels = results[1]
 
 if __name__ == "__main__":
     tf.test.main()

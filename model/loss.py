@@ -6,7 +6,7 @@ EPSILON_ZERO = 0.55
 POWER_M = 2
 
 
-def semranker_loss(target_indices, predicted_scores):
+def semranker_loss(target_indices, predicted_scores, batch_size=100):
     oh = tf.one_hot(target_indices, dtype=tf.float32, depth=3)
 
     l_pos = tf.expand_dims(tf.pow((-tf.minimum(0., predicted_scores - EPSILON_POS)), POWER_M), axis=1)
@@ -15,6 +15,6 @@ def semranker_loss(target_indices, predicted_scores):
 
     l = tf.concat([l_neg, l_zero, l_pos], axis=1) * oh
 
-    loss = tf.reduce_sum(l)/100.
+    loss = tf.reduce_sum(l)/batch_size
 
     return loss

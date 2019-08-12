@@ -1,12 +1,13 @@
 import tensorflow as tf
 from reader.tf_csv_reader import CsvSemRankerReader
 from model.estimator import semranker_fn
-
+import os
 
 def main():
-    num_gpus = 8
+    list_files = [os.path.join("train_csv", f) for f in os.listdir("train_csv") if f.endswith(".csv")]
+    
     reader = CsvSemRankerReader(
-        pair_path="shuf_pairs.csv",
+        pair_paths=list_files,
         precomputed_path="meta/precomputed.json",
         product_db="db/tiki-products.db",
         vocab_path="meta/vocab.txt",
@@ -51,16 +52,16 @@ def main():
 
     params = {'model': mconfig, 'train': pconfig, 'using_gpu': True}
 
-    distribution = tf.contrib.distribute.MirroredStrategy(num_gpus=8)
+    distribution = tf.contrib.distribute.MirroredStrategy(num_gpus=4)
 
 
     session_config = tf.ConfigProto(
         allow_soft_placement=True,
-        operation_timeout_in_ms=10000,
-        train_distribute=distribution)
+        operation_timeout_in_ms=10000)
 
     # build config for trainning
     run_config = tf.estimator.RunConfig(
+        train_distribute=distribution,
         session_config=session_config,
         save_checkpoints_steps=pconfig['save_checkpoint_steps'],
         keep_checkpoint_max=pconfig['keep_checkpoint_max']

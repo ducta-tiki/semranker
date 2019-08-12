@@ -23,7 +23,8 @@ class SemRankerPredict:
         max_author_length=10,
         max_cat_length=10, #for unigram, bigram, character trigrams
         max_attr_length=10, #for unigram, bigram, character trigram
-        unknown_bin=8012
+        unknown_bin=8012,
+        using_gpu=False,
     ):
         self.vocab = []
         with open(vocab_path, 'r') as fobj:
@@ -78,9 +79,15 @@ class SemRankerPredict:
         self.conn = create_connection(product_db)
         self.headers = get_fields(self.conn)
 
-        self.sess = tf.Session()
-        _ = loader.load(
+        if using_gpu:
+            # with tf.device("/gpu:0"):
+            self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+            _ = loader.load(
             self.sess, [tag_constants.SERVING], export_dir=checkpoint_path)
+        else:
+            self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+            _ = loader.load(
+                self.sess, [tag_constants.SERVING], export_dir=checkpoint_path)
 
     def unknown_to_idx(self, unknown):
         return self.hasher(unknown) % self.unknown_bin
@@ -206,8 +213,8 @@ if __name__ == "__main__":
 
     import requests
     from pprint import pprint
-    # query = "từ điển điện tử"
-    # query = "tv"
+    #query = "từ điển điện tử"
+    query = "tv"
     # query = "iphone màu đen"
     # query = "apple watch"
     # query = "realme 3 pro"
@@ -220,10 +227,21 @@ if __name__ == "__main__":
     #query = 'ma đạo tổ sư đam mỹ'
     # query = 'ủng đi mưa'
     # query = 'đàm thaoij tiếng trung ngành nhà hàng'
-    # query = 'vinamil'
+    query = 'vinamil'
     # query = 'lược sử hacker'
     # query = 'gel xoa tham quang mat'
-    query = 'chuyện đông chuyện tây nguyễn lân dũng'
+    # query = 'chuyện đông chuyện tây nguyễn lân dũng'
+    # query = 'kiếng bơi cận 6.0 độ'
+    #query ='truyen tham tu conan tap 89'
+    # query = 'ly giữ nhiệt màu gradient kiểu dáng miows'
+    #query = 'macbook pro 2018'
+    # query = 'truyện siêu quậy teppi tập 15'
+    #query = '1451dha001'
+    #query = 'mực máy in ts707'
+    #query = 'dán điện thoại a5 2017'
+    #query = 'kềm kẹp cua'
+    #query = 'băng keo cá nhân doremon'
+    query = 'bộ quần áo siêu nhân siêu anh hùng cho bé trai'
     resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=500" % query)
     products = list(map(lambda x: x.get("id"), json.loads(resp.text)['data']['data']))
     pred_score, ret_products = predictor.fit(query, products)

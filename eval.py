@@ -97,7 +97,7 @@ for query, z in dict_q.items():
             f1.flush()
             f2.flush()
             f3.flush()
-    if count > 1000:
+    if count > 5000:
         break
 print("NDCG: %0.4f" % (cum_ndcg/count))
 f1.close()

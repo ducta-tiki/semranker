@@ -29,6 +29,8 @@ def semranker_fn(features, labels, mode, params):
         max_cat_length=mconfig.get('max_cat_length'), 
         num_filters=mconfig.get('num_filters')
     )
+    number_of_queries = features.get('number_of_queries')
+    del features['number_of_queries']
     score = ranker(
         training=is_training,
         **features
@@ -50,7 +52,8 @@ def semranker_fn(features, labels, mode, params):
             export_outputs={'predict_output': tf.estimator.export.PredictOutput(predictions)}
         )
     else:
-        loss = semranker_loss(labels, score, pconfig.get('batch_size'))
+        loss = semranker_loss(labels, score, 
+            tf.cast(number_of_queries, tf.float32))
     
     if is_training:
         global_step = tf.train.get_or_create_global_step()
@@ -61,13 +64,13 @@ def semranker_fn(features, labels, mode, params):
             pconfig.get('decay_learning_rate_ratio', 0.9),
             staircase=True)
 
-        opt = tf.train.MomentumOptimizer(
-            learning_rate=learning_rate,
-            momentum=pconfig.get('momentum', 0.9)
+        # opt = tf.train.MomentumOptimizer(
+        #     learning_rate=learning_rate,
+        #     momentum=pconfig.get('momentum', 0.9)
+        # )
+        opt = tf.train.AdamOptimizer(
+           learning_rate=learning_rate
         )
-        #opt = tf.train.AdamOptimizer(
-        #    learning_rate=learning_rate
-        #)
         tensors_to_log = {'learning_rate': learning_rate, 'loss': loss}
         logging_hook = tf.train.LoggingTensorHook(
             tensors=tensors_to_log, every_n_iter=pconfig.get('step_print_logs', 5))

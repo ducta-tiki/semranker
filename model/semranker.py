@@ -65,9 +65,13 @@ class SemRanker(object):
         return h_pool_flat
 
     def __call__(
-        self, query_indices=None, product_name_indices=None, brand_indices=None, author_indices=None,
-        cat_indices=None, attr_indices=None, cat_tokens=None, attr_tokens=None, 
-        cats_in_product=None, attrs_in_product=None, free_features=None, training=True):
+        self, query_unigram_indices=None, query_bigram_indices=None, query_char_trigram_indices=None,
+        product_unigram_indices=None, product_bigram_indices=None, product_char_trigram_indices=None,
+        brand_unigram_indices=None, brand_bigram_indices=None, brand_char_trigram_indices=None,
+        author_unigram_indices=None, author_bigram_indices=None, author_char_trigram_indices=None,
+        cat_tokens=None, cat_in_product=None, cat_unigram_indices=None, cat_bigram_indices=None, 
+        cat_char_trigram_indices=None, attr_tokens=None, attr_in_product=None, attr_unigram_indices=None,
+        attr_bigram_indices=None, attr_char_trigram_indices=None, features=None, training=True):
         """
         :param query_indices: (unigrams, bigrams, char_trigrams) of query
                     [(batch_size, max_len_1), (batch_size, max_len_2), (batch_size, max_len_3)]
@@ -93,6 +97,13 @@ class SemRanker(object):
                     (batch_size, number_of_features)
         :return: cosine score
         """
+
+        query_indices = [query_unigram_indices, query_bigram_indices, query_char_trigram_indices]
+        product_name_indices = [product_unigram_indices, product_bigram_indices, product_char_trigram_indices]
+        brand_indices = [brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices]
+        author_indices = [author_unigram_indices, author_bigram_indices, author_char_trigram_indices]
+        cat_indices = [cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices]
+        attr_indices = [ attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices]
 
         with tf.variable_scope("embedding"):
             ngram_embed_weights = tf.get_variable(
@@ -154,7 +165,7 @@ class SemRanker(object):
             for cz, name, scale in zip(cat_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
                 cz_embed = tf.nn.embedding_lookup(ngram_embed_weights, cz)
                 cz_cnn = self.text_cnn(
-                    cz_embed, cats_in_product, self.max_cat_length*scale, "category-" + name, embed_cat_tokens)
+                    cz_embed, cat_in_product, self.max_cat_length*scale, "category-" + name, embed_cat_tokens)
                 embed_cat.append(cz_cnn)
             embed_cat = tf.concat(embed_cat, axis=1, name="category_encode")
 
@@ -163,7 +174,7 @@ class SemRanker(object):
             for attr_z, name, scale in zip(attr_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
                 attr_z_embed = tf.nn.embedding_lookup(ngram_embed_weights, attr_z)
                 attr_z_cnn = self.text_cnn(
-                    attr_z_embed, attrs_in_product, self.max_cat_length*scale, "attribute-" + name, embed_attr_tokens)
+                    attr_z_embed, attr_in_product, self.max_cat_length*scale, "attribute-" + name, embed_attr_tokens)
                 embed_attr.append(attr_z_cnn)
             embed_attr = tf.concat(embed_attr, axis=1, name="attribute_encode")
 
@@ -172,7 +183,7 @@ class SemRanker(object):
             embed_attr= tf.reshape(embed_cat, 
                 [-1, (len(self.filter_sizes)*self.num_filters + self.attr_cat_embed_size)*3])
             product_features = tf.concat([
-                embed_product_names, embed_brand, embed_author, embed_cat, embed_attr, free_features
+                embed_product_names, embed_brand, embed_author, embed_cat, embed_attr, features
             ], axis=1)
 
         with tf.name_scope("bn"):

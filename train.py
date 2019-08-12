@@ -1,11 +1,12 @@
 import tensorflow as tf
 from reader.tf_csv_reader import CsvSemRankerReader
 from model.estimator import semranker_fn
-
+import os
 
 def main():    
+    list_files = [os.path.join("train_csv", f) for f in os.listdir("train_csv") if f.endswith(".csv")]
     reader = CsvSemRankerReader(
-        pair_path="shuf_pairs.csv",
+        pair_paths=list_files,
         precomputed_path="meta/precomputed.json",
         product_db="db/tiki-products.db",
         vocab_path="meta/vocab.txt",
@@ -42,7 +43,7 @@ def main():
         'decay_learning_rate_ratio': 0.9,
         'momentum': 0.9,
         'step_print_logs': 10,
-        'batch_size': 100,
+        'batch_size': 5,
         'max_steps': 4000000,
         'save_checkpoint_steps': 1000,
         'keep_checkpoint_max': 10
@@ -50,12 +51,19 @@ def main():
 
     params = {'model': mconfig, 'train': pconfig, 'using_gpu': True}
 
+    using_gpu = params.get('using_gpu', False)
+
+    device_fn = lambda op: "/cpu:0"
+    if using_gpu:
+        device_fn = lambda op: "/gpu:0"
+
     session_config = tf.ConfigProto(
         allow_soft_placement=True,
         operation_timeout_in_ms=10000)
 
     # build config for trainning
     run_config = tf.estimator.RunConfig(
+        device_fn=device_fn,
         session_config=session_config,
         save_checkpoints_steps=pconfig['save_checkpoint_steps'],
         keep_checkpoint_max=pconfig['keep_checkpoint_max']

@@ -12,7 +12,7 @@ import time
 
 class CsvSemRankerReader(object):
     def __init__(
-        self, pair_path,
+        self, pair_paths,
         precomputed_path,
         product_db,
         vocab_path,
@@ -77,15 +77,12 @@ class CsvSemRankerReader(object):
         self.hasher = pyhash.murmur3_32()
 
         # initialize sampling pools
-        self.pair_path = pair_path
+        self.pair_paths = pair_paths
         self.precomputed_path = precomputed_path
 
         self.conn = create_connection(product_db)
         self.headers = get_fields(self.conn)
 
-        self.pair_data = tf.contrib.data.CsvDataset(
-            filenames=[self.pair_path],
-            record_defaults=[tf.string, tf.string])
 
     def unknown_to_idx(self, unknown):
         return self.hasher(unknown) % self.unknown_bin
@@ -107,13 +104,14 @@ class CsvSemRankerReader(object):
         return None
 
     def _wrapper_map(self):
-        def _map_to_indices(pair_batch):
+        def _map_to_indices(keywords, interactions):
             queries = []
             labels = []
             products = []
-            pair_batch = pair_batch.numpy()
-            
-            for pairs in zip(*pair_batch):
+            keywords = keywords.numpy()
+            interactions = interactions.numpy()
+
+            for pairs in zip(keywords, interactions):
                 keyword = pairs[0].decode()
                 r1 = pairs[1].decode()
                 pk = r1.split("|")
@@ -206,18 +204,19 @@ class CsvSemRankerReader(object):
                author_unigram_indices, author_bigram_indices, author_char_trigram_indices, \
                cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices,\
                attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices,\
-               features, labels
+               features, len(queries),labels
         return _map_to_indices
 
-    def get_batch(self, batch_size):
-        with tf.device('/device:CPU:*'):
-            pair_dataset = self.pair_data.batch(batch_size)
-            pair_dataset = pair_dataset.repeat(None)
-            iterator = pair_dataset.make_one_shot_iterator()
-            next_pair_batch = iterator.get_next()
-
-            next_batch = tf.py_function(
-                self._wrapper_map(), [next_pair_batch], 
+    def tf_map(self):
+        def _inside(x, y):
+            query_unigram_indices, query_bigram_indices, query_char_trigram_indices, \
+            product_unigram_indices, product_bigram_indices, product_char_trigram_indices, \
+            brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, \
+            author_unigram_indices, author_bigram_indices, author_char_trigram_indices, \
+            cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices, \
+            attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices, \
+            features, number_of_queries, labels = tf.py_function(
+                self._wrapper_map(), [x, y], 
                 [
                     tf.int32, tf.int32, tf.int32, # query_unigram_indices, query_bigram_indices, query_char_trigram_indices
                     tf.int32, tf.int32, tf.int32, # product_unigram_indices, product_bigram_indices, product_char_trigram_indices
@@ -225,62 +224,106 @@ class CsvSemRankerReader(object):
                     tf.int32, tf.int32, tf.int32, # author_unigram_indices, author_bigram_indices, author_char_trigram_indices
                     tf.int32, tf.int32, tf.int32, tf.int32, tf.int32, # cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices
                     tf.int32, tf.int32, tf.int32, tf.int32, tf.int32, # attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices
-                    tf.float32, tf.int32 # features, labels
+                    tf.float32, tf.int32, tf.int32 # features, number_of_queries, labels
 
                 ])
 
-        return next_batch
+            query_unigram_indices = tf.reshape(
+                query_unigram_indices, [-1, self.maximums_query[0]])
+            query_bigram_indices = tf.reshape(
+                query_bigram_indices, [-1, self.maximums_query[1]]) 
+            query_char_trigram_indices = tf.reshape(
+                query_char_trigram_indices, [-1, self.maximums_query[2]])
 
-    def input_fn_generator(self, batch_size):
-        def _inside():
-            query_unigram_indices, query_bigram_indices, query_char_trigram_indices, \
-               product_unigram_indices, product_bigram_indices, product_char_trigram_indices, \
-               brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, \
-               author_unigram_indices, author_bigram_indices, author_char_trigram_indices, \
-               cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices,\
-               attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices,\
-               features, labels = self.get_batch(batch_size)
+            product_unigram_indices = tf.reshape(
+                product_unigram_indices, [-1, self.maximums_product_name[0]])
+            product_bigram_indices = tf.reshape(
+                product_bigram_indices, [-1, self.maximums_product_name[1]])
+            product_char_trigram_indices = tf.reshape(
+                product_char_trigram_indices, [-1, self.maximums_product_name[2]])
+
+            brand_unigram_indices = tf.reshape(
+                brand_unigram_indices, [-1, self.maximums_brand[0]])
+            brand_bigram_indices = tf.reshape(
+                brand_bigram_indices, [-1, self.maximums_brand[1]])
+            brand_char_trigram_indices = tf.reshape(
+                brand_char_trigram_indices, [-1, self.maximums_brand[2]])
+
+            author_unigram_indices = tf.reshape(
+                author_unigram_indices, [-1, self.maximums_author[0]])
+            author_bigram_indices = tf.reshape(
+                author_bigram_indices, [-1, self.maximums_author[1]])
+            author_char_trigram_indices = tf.reshape(
+                author_char_trigram_indices, [-1, self.maximums_author[2]])
+
+            cat_tokens = tf.reshape(cat_tokens, [-1]) 
+            cat_in_product = tf.reshape(cat_in_product, [-1])
+            cat_unigram_indices = tf.reshape(
+                cat_unigram_indices, [-1, self.maximums_cat[0]])
+            cat_bigram_indices = tf.reshape(
+                cat_bigram_indices, [-1, self.maximums_cat[1]])
+            cat_char_trigram_indices = tf.reshape(
+                cat_char_trigram_indices, [-1, self.maximums_cat[2]])
             
+            attr_tokens = tf.reshape(attr_tokens, [-1]) 
+            attr_in_product = tf.reshape(attr_in_product, [-1])
+            attr_unigram_indices = tf.reshape(
+                attr_unigram_indices, [-1, self.maximums_attr[0]])
+            attr_bigram_indices = tf.reshape(
+                attr_bigram_indices, [-1, self.maximums_attr[1]])
+            attr_char_trigram_indices = tf.reshape(
+                attr_char_trigram_indices, [-1, self.maximums_attr[2]])
+
+            features = tf.reshape(features, [-1, len(self.precomputed)])
+            labels = tf.reshape(labels, [-1])
 
             return {
-                'query_indices': [
-                    tf.reshape(query_unigram_indices, [-1, self.maximums_query[0]]), 
-                    tf.reshape(query_bigram_indices, [-1, self.maximums_query[1]]), 
-                    tf.reshape(query_char_trigram_indices, [-1, self.maximums_query[2]])
-                ],
-                'product_name_indices': [
-                    tf.reshape(product_unigram_indices, [-1, self.maximums_product_name[0]]), 
-                    tf.reshape(product_bigram_indices, [-1, self.maximums_product_name[1]]),
-                    tf.reshape(product_char_trigram_indices, [-1, self.maximums_product_name[2]])
-                ],
-                'brand_indices': [
-                    tf.reshape(brand_unigram_indices, [-1, self.maximums_brand[0]]),
-                    tf.reshape(brand_bigram_indices, [-1, self.maximums_brand[1]]),
-                    tf.reshape(brand_char_trigram_indices, [-1, self.maximums_brand[2]])
-                ],
-                'author_indices': [
-                    tf.reshape(author_unigram_indices, [-1, self.maximums_author[0]]),
-                    tf.reshape(author_bigram_indices, [-1, self.maximums_author[1]]),
-                    tf.reshape(author_char_trigram_indices, [-1, self.maximums_author[2]]),
-                ],
-                'cat_indices': [
-                    tf.reshape(cat_unigram_indices, [-1, self.maximums_cat[0]]),
-                    tf.reshape(cat_bigram_indices, [-1, self.maximums_cat[1]]),
-                    tf.reshape(cat_char_trigram_indices, [-1, self.maximums_cat[2]])
-                ],
-                'attr_indices': [
-                    tf.reshape(attr_unigram_indices, [-1, self.maximums_attr[0]]),
-                    tf.reshape(attr_bigram_indices, [-1, self.maximums_attr[1]]),
-                    tf.reshape(attr_char_trigram_indices, [-1, self.maximums_attr[2]])
-                ],
-                'cat_tokens': cat_tokens,
-                'attr_tokens': attr_tokens,
-                'cats_in_product': cat_in_product,
-                'attrs_in_product': attr_in_product,
-                'free_features': tf.reshape(features, [-1, len(self.precomputed)])
-            }, labels
-
+                'query_unigram_indices' :query_unigram_indices, 
+                'query_bigram_indices': query_bigram_indices, 
+                'query_char_trigram_indices': query_char_trigram_indices,
+                'product_unigram_indices':product_unigram_indices, 
+                'product_bigram_indices': product_bigram_indices, 
+                'product_char_trigram_indices': product_char_trigram_indices, 
+                'brand_unigram_indices': brand_unigram_indices, 
+                'brand_bigram_indices': brand_bigram_indices, 
+                'brand_char_trigram_indices': brand_char_trigram_indices, 
+                'author_unigram_indices': author_unigram_indices, 
+                'author_bigram_indices': author_bigram_indices, 
+                'author_char_trigram_indices': author_char_trigram_indices, 
+                'cat_tokens': cat_tokens, 
+                'cat_in_product': cat_in_product, 
+                'cat_unigram_indices': cat_unigram_indices, 
+                'cat_bigram_indices': cat_bigram_indices, 
+                'cat_char_trigram_indices': cat_char_trigram_indices, 
+                'attr_tokens': attr_tokens, 
+                'attr_in_product': attr_in_product, 
+                'attr_unigram_indices': attr_unigram_indices, 
+                'attr_bigram_indices': attr_bigram_indices,
+                'attr_char_trigram_indices': attr_char_trigram_indices, 
+                'number_of_queries': number_of_queries,
+                'features':features}, labels
         return _inside
+
+
+    def get_batch(self, batch_size, for_estimator=False):
+        with tf.device('/device:CPU:*'):
+            self.pair_data = tf.data.experimental.CsvDataset(
+                filenames=self.pair_paths,
+                record_defaults=[tf.string, tf.string])
+            pair_dataset = self.pair_data.batch(batch_size)
+            pair_dataset = pair_dataset.repeat(None)
+            pair_dataset = pair_dataset.map(self.tf_map())
+
+            if for_estimator:
+                return pair_dataset
+
+            iterator = pair_dataset.make_one_shot_iterator()
+            next_element = iterator.get_next()
+
+            return next_element
+
+    def input_fn_generator(self, batch_size):
+        return lambda: self.get_batch(batch_size, for_estimator=True)
 
     def end(self):
         self.conn.close()
