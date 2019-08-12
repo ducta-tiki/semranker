@@ -50,7 +50,7 @@ def semranker_fn(features, labels, mode, params):
             export_outputs={'predict_output': tf.estimator.export.PredictOutput(predictions)}
         )
     else:
-        loss = semranker_loss(labels, score)
+        loss = semranker_loss(labels, score, pconfig.get('batch_size'))
     
     if is_training:
         global_step = tf.train.get_or_create_global_step()
