@@ -4,7 +4,9 @@ from model.estimator import semranker_fn
 import os
 
 def main():
-    list_files = [os.path.join("train_csv", f) for f in os.listdir("train_csv") if f.endswith(".csv")]
+    list_files = [
+        os.path.join("transform_impressions", f) 
+            for f in os.listdir("transform_impressions") if f.endswith(".csv")]
     
     reader = CsvSemRankerReader(
         pair_paths=list_files,
@@ -46,7 +48,7 @@ def main():
         'step_print_logs': 10,
         'batch_size': 1024,
         'max_steps': 4000000,
-        'save_checkpoint_steps': 1000,
+        'save_checkpoint_steps': 500,
         'keep_checkpoint_max': 10
     }
 

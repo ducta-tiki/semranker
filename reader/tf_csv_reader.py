@@ -5,7 +5,7 @@ import json
 import random
 from random import randint
 import numpy as np
-from reader.sqlite_product import create_connection, get_product, get_fields
+from reader.sqlite_product import create_connection, get_product, get_fields, random_sample
 from reader.convert import convert_strings, convert_cats, convert_attrs, convert_features
 from vn_lang import query_preprocessing
 import time
@@ -80,9 +80,23 @@ class CsvSemRankerReader(object):
         self.pair_paths = pair_paths
         self.precomputed_path = precomputed_path
 
-        self.conn = create_connection(product_db)
-        self.headers = get_fields(self.conn)
+        # self.conn = create_connection(product_db)
+        # self.headers = get_fields(self.conn)
 
+        if product_db:
+            self.product_dict = {}
+            with open(product_db, "r") as fobj:
+                csv_reader= csv.DictReader(fobj)
+                for i, r in enumerate(csv_reader):
+                    r = dict(r)
+                    r["name"] = query_preprocessing(r.get("name"))
+                    r["brand"] = query_preprocessing(r.get("brand"))
+                    r["author"] = " ".join([query_preprocessing(z) for z in r.get("author")])
+                    self.product_dict[r.get("product_id")] = r
+                    if i % 100000 == 0:
+                        print("Loaded %d products" % i)
+
+            self.product_ids =  list(self.product_dict.keys())
 
     def unknown_to_idx(self, unknown):
         return self.hasher(unknown) % self.unknown_bin
@@ -110,15 +124,22 @@ class CsvSemRankerReader(object):
             products = []
             keywords = keywords.numpy()
             interactions = interactions.numpy()
+            qids = []
+            count_keyword = 0
 
             for pairs in zip(keywords, interactions):
+                dd = time.time()
                 keyword = pairs[0].decode()
+                if len(keyword) == 0:
+                    continue
+                count_keyword += 1
                 r1 = pairs[1].decode()
                 pk = r1.split("|")
                 pnk = [z.split("#") for z in pk]
                 pos = []
                 zero = []
                 neg = []
+
                 for p in pnk:
                     if p[1] == '2':
                         pos.append(p[0])
@@ -127,21 +148,27 @@ class CsvSemRankerReader(object):
                     else:
                         neg.append(p[0])
                 n = len(pos)
-                if n == 0: n = 1
-                zero = random.sample(zero, min(len(zero),n*7))
-                neg = random.sample(neg, min(len(neg), n*8))[:20]
+                if n == 0: 
+                    n = len(zero)
+                    if n:
+                        neg = random.sample(self.product_ids, min(len(neg), int(n*1.5)))
+                    else:
+                        neg = random.sample(self.product_ids, 8)
+                else:
+                    zero = random.sample(zero, min(len(zero), n*6))
+                    neg = random.sample(self.product_ids, n*4) + random.sample(neg, min(len(neg), n*3))
 
                 for samples, l in zip([pos, zero, neg], [2,1,0]):
                     for s in samples:
-                        product = self.get_product(s)
+                        product = self.product_dict.get(s)
                         if product:
                             queries.append(keyword)
+                            qids.append(count_keyword)
                             products.append(product)
                             labels.append(l)
-
-            product_names = list(map(lambda x: query_preprocessing(x.get("name")), products))
-            brands = list(map(lambda x: query_preprocessing(x.get("brand")), products))
-            authors = list(map(lambda x: " ".join([query_preprocessing(z) for z in x.get("author")]), products))
+            product_names = list(map(lambda x: x.get("name"), products))
+            brands = list(map(lambda x: x.get("brand"), products))
+            authors = list(map(lambda x: x.get("author"), products))
             categories = list(map(lambda x: x.get('categories'), products))
             attributes = list(map(lambda x: x.get('attributes'), products))
             features = list(map(lambda x: [x.get(h) for h in self.precomputed], products))
@@ -198,13 +225,15 @@ class CsvSemRankerReader(object):
                 features, precomputed_features_min, precomputed_features_max)
 
             labels = np.asarray(labels, dtype=np.int32)
+            qids = np.asarray(qids, dtype=np.int32)
+            
             return query_unigram_indices, query_bigram_indices, query_char_trigram_indices, \
                product_unigram_indices, product_bigram_indices, product_char_trigram_indices, \
                brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, \
                author_unigram_indices, author_bigram_indices, author_char_trigram_indices, \
                cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices,\
                attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices,\
-               features, len(queries),labels
+               features, count_keyword, qids, labels
         return _map_to_indices
 
     def tf_map(self):
@@ -215,7 +244,7 @@ class CsvSemRankerReader(object):
             author_unigram_indices, author_bigram_indices, author_char_trigram_indices, \
             cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices, \
             attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices, \
-            features, number_of_queries, labels = tf.py_function(
+            features, number_of_queries, qids, labels = tf.py_function(
                 self._wrapper_map(), [x, y], 
                 [
                     tf.int32, tf.int32, tf.int32, # query_unigram_indices, query_bigram_indices, query_char_trigram_indices
@@ -224,7 +253,7 @@ class CsvSemRankerReader(object):
                     tf.int32, tf.int32, tf.int32, # author_unigram_indices, author_bigram_indices, author_char_trigram_indices
                     tf.int32, tf.int32, tf.int32, tf.int32, tf.int32, # cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices
                     tf.int32, tf.int32, tf.int32, tf.int32, tf.int32, # attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices
-                    tf.float32, tf.int32, tf.int32 # features, number_of_queries, labels
+                    tf.float32, tf.int32, tf.int32, tf.int32 # features, number_of_queries, qids, labels
 
                 ])
 
@@ -276,6 +305,7 @@ class CsvSemRankerReader(object):
 
             features = tf.reshape(features, [-1, len(self.precomputed)])
             labels = tf.reshape(labels, [-1])
+            qids = tf.reshape(qids, [-1])
 
             return {
                 'query_unigram_indices' :query_unigram_indices, 
@@ -300,8 +330,9 @@ class CsvSemRankerReader(object):
                 'attr_unigram_indices': attr_unigram_indices, 
                 'attr_bigram_indices': attr_bigram_indices,
                 'attr_char_trigram_indices': attr_char_trigram_indices, 
+                'features':features,
                 'number_of_queries': number_of_queries,
-                'features':features}, labels
+                'qids': qids}, labels
         return _inside
 
 

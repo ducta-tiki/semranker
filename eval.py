@@ -5,8 +5,8 @@ from vn_lang import query_preprocessing
 import re
 
 file_paths = [
-    "product_impressions/product_impressions_20190803_000000000000.csv",
-    "product_impressions/product_impressions_20190804_000000000000.csv"
+    "product_impressions/product_impressions_20190805_000000000000.csv",
+    "product_impressions/product_impressions_20190806_000000000000.csv"
 ]
 
 predictor = SemRankerPredict()

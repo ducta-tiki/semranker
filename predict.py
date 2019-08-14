@@ -81,7 +81,7 @@ class SemRankerPredict:
 
         if using_gpu:
             # with tf.device("/gpu:0"):
-            self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+            self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
             _ = loader.load(
             self.sess, [tag_constants.SERVING], export_dir=checkpoint_path)
         else:
@@ -206,6 +206,34 @@ class SemRankerPredict:
             'free_features:0': free_features
         })
 
+        z = feed_dict={
+            'query_unigram_indices': query_unigram_indices,
+            'query_bigram_indices':query_bigram_indices, 
+            'query_char_trigram_indices':query_char_trigram_indices,
+            'product_unigram_indices': product_unigram_indices,
+            'product_bigram_indices': product_bigram_indices,
+            'product_char_trigram_indices': product_char_trigram_indices,
+            'brand_unigram_indices': brand_unigram_indices,
+            'brand_bigram_indices': brand_bigram_indices,
+            'brand_char_trigram_indices': brand_char_trigram_indices,
+            'author_unigram_indices': author_unigram_indices,
+            'author_bigram_indices': author_bigram_indices,
+            'author_char_trigram_indices': author_char_trigram_indices,
+            'cat_tokens': cat_tokens,
+            'cats_in_product': cat_in_product,
+            'cat_unigram_indices': cat_unigram_indices,
+            'cat_bigram_indices': cat_bigram_indices,
+            'cat_char_trigram_indices': cat_char_trigram_indices,
+            'attr_tokens': attr_tokens,
+            'attrs_in_product': attr_in_product,
+            'attr_unigram_indices': attr_unigram_indices,
+            'attr_bigram_indices': attr_bigram_indices,
+            'attr_char_trigram_indices': attr_char_trigram_indices,
+            'free_features': free_features
+        }
+        import numpy as np
+        np.save("z.npy", z)
+
         return list(pred_score), products
 
 if __name__ == "__main__":
@@ -213,8 +241,8 @@ if __name__ == "__main__":
 
     import requests
     from pprint import pprint
-    #query = "từ điển điện tử"
-    query = "tv"
+    # query = "từ điển điện tử"
+    # query = "tv"
     # query = "iphone màu đen"
     # query = "apple watch"
     # query = "realme 3 pro"
@@ -224,27 +252,40 @@ if __name__ == "__main__":
     # query = 'máy rung'
     # query = 'dày nữ'
     # query = 'sac du phong iphone'
-    #query = 'ma đạo tổ sư đam mỹ'
+    # query = 'ma đạo tổ sư đam mỹ'
     # query = 'ủng đi mưa'
     # query = 'đàm thaoij tiếng trung ngành nhà hàng'
-    query = 'vinamil'
+    # query = 'vinamil'
     # query = 'lược sử hacker'
     # query = 'gel xoa tham quang mat'
     # query = 'chuyện đông chuyện tây nguyễn lân dũng'
     # query = 'kiếng bơi cận 6.0 độ'
-    #query ='truyen tham tu conan tap 89'
+    # query ='truyen tham tu conan tap 89'
     # query = 'ly giữ nhiệt màu gradient kiểu dáng miows'
-    #query = 'macbook pro 2018'
+    # query = 'macbook pro 2018'
     # query = 'truyện siêu quậy teppi tập 15'
-    #query = '1451dha001'
-    #query = 'mực máy in ts707'
-    #query = 'dán điện thoại a5 2017'
-    #query = 'kềm kẹp cua'
-    #query = 'băng keo cá nhân doremon'
-    query = 'bộ quần áo siêu nhân siêu anh hùng cho bé trai'
-    resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=500" % query)
-    products = list(map(lambda x: x.get("id"), json.loads(resp.text)['data']['data']))
-    pred_score, ret_products = predictor.fit(query, products)
+    # query = '1451dha001'
+    # query = 'mực máy in ts707'
+    # query = 'dán điện thoại a5 2017'
+    # query = 'kềm kẹp cua'
+    # query = 'băng keo cá nhân doremon'
+    # query = 'bộ quần áo siêu nhân siêu anh hùng cho bé trai'
+    # query = "quần đùi thể thao"
+    # query = "tiếng anh 9"
+    # query = 'decal gạch bông'
+    # query = 'ô long viện'
+    # query = 'ốp lương cho nokia 3.1'
+    # query = 'vạt vật vận hành'
+    # resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=500" % query)
+    # products = list(map(lambda x: x.get("id"), json.loads(resp.text)['data']['data']))
+
+    query = "hộp thiếc"
+    interactions = "14605408#1|12420824#1|8420238#1|16154149#1|11913722#0|14663074#0|11913931#0|11897505#0|11897160#0|16162604#0|8974363#0|854733#0|2430497#0|454312#0|11895249#0|14677794#0|854715#0|11598225#0|2430501#0|11889779#0|454309#0|2430499#0|16993273#0|453377#0|14683682#0|11598221#0|11598236#0|453381#0|11598228#0|453379#0|4502785#0|452348#0|13955343#0|574459#0|511158#0|7962785#1|15405231#1|7900457#0|9816520#0|9814746#0|711152#0|7955042#0|2692703#0|2692715#0|2692713#0|574488#0|15288103#1|2692699#1|17994060#0|574435#0|14154671#0|2692705#0|574470#0|14757868#1|1000544#0|8183980#1|7818998#0|19421740#1|19903890#1|2692717#0|574440#0|574481#0|7819006#0|2692711#0|7907193#0|7954964#0|14757870#0|7187943#0|14678617#0|20506527#0|13829077#0|16611666#0|14458932#0|13829065#0|13779127#0|13132599#0|16052206#0|13803493#0|17986616#0|22179458#1|21082909#0|23491938#0|23494057#0|23363904#0|23493817#0|23638215#0|24843828#0"
+    qids = sorted([x.split("#") for x in interactions.split("|")], key=lambda x: x[1], reverse=True)
+    qids = [x[0] for x in qids]
+
+    pred_score, ret_products = predictor.fit(query, qids)
+
 
     for i, p in enumerate(ret_products):
         p['pos'] = i

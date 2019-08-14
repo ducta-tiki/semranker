@@ -39,10 +39,19 @@ def get_product(conn, product_id):
     
     return None
 
+def random_sample(conn, num_of_samples=1):
+    cur = conn.cursor()
+
+    products = []
+    cur.execute("SELECT product_id FROM product ORDER BY RANDOM() LIMIT %d;" % num_of_samples)
+
+    products += cur.fetchall()
+    
+    return [x[0] for x in products]
 
 if __name__ == "__main__":
 
     conn = create_connection('../db/tiki-products.db')
-    print(get_product(conn, '547362'))
-    print(get_fields(conn))
+    for _ in range(50):
+        print(random_sample(conn, 3))
     conn.close()

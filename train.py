@@ -4,11 +4,13 @@ from model.estimator import semranker_fn
 import os
 
 def main():    
-    list_files = [os.path.join("train_csv", f) for f in os.listdir("train_csv") if f.endswith(".csv")]
+    list_files = [
+        os.path.join("transform_impressions", f) 
+            for f in os.listdir("transform_impressions") if f.endswith(".csv")]
     reader = CsvSemRankerReader(
         pair_paths=list_files,
         precomputed_path="meta/precomputed.json",
-        product_db="db/tiki-products.db",
+        product_db="data/product.csv",
         vocab_path="meta/vocab.txt",
         cat_tokens_path="meta/cats.txt",
         attr_tokens_path="meta/attrs.txt",
@@ -25,8 +27,8 @@ def main():
         'unknown_bin': reader.unknown_bin,
         'cat_tokens_size': reader.cat_tokens_size,
         'attr_tokens_size': reader.attr_tokens_size,
-        'embed_size': 100,
-        'attr_cat_embed_size': 10,
+        'embed_size': 256,
+        'attr_cat_embed_size': 30,
         'filter_sizes': [2,3,4,5],
         'max_query_length': reader.maximums_query[0],
         'max_product_name_length': reader.maximums_product_name[0],
@@ -43,10 +45,10 @@ def main():
         'decay_learning_rate_ratio': 0.9,
         'momentum': 0.9,
         'step_print_logs': 10,
-        'batch_size': 5,
+        'batch_size': 100,
         'max_steps': 4000000,
-        'save_checkpoint_steps': 1000,
-        'keep_checkpoint_max': 10
+        'save_checkpoint_steps': 200,
+        'keep_checkpoint_max': 20
     }
 
     params = {'model': mconfig, 'train': pconfig, 'using_gpu': True}
@@ -58,8 +60,7 @@ def main():
         device_fn = lambda op: "/gpu:0"
 
     session_config = tf.ConfigProto(
-        allow_soft_placement=True,
-        operation_timeout_in_ms=10000)
+        allow_soft_placement=True)
 
     # build config for trainning
     run_config = tf.estimator.RunConfig(

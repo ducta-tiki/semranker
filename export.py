@@ -31,10 +31,12 @@ SCORE = 'score:0'
 
 
 def main():
+    import os
+    list_files = [os.path.join("transform_impressions", f) for f in os.listdir("transform_impressions") if f.endswith(".csv")]
     reader = CsvSemRankerReader(
-        pair_path="pairs.csv",
+        pair_paths=list_files,
         precomputed_path="meta/precomputed.json",
-        product_db="db/tiki-products.db",
+        product_db=None,
         vocab_path="meta/vocab.txt",
         cat_tokens_path="meta/cats.txt",
         attr_tokens_path="meta/attrs.txt",
@@ -51,8 +53,8 @@ def main():
         'unknown_bin': reader.unknown_bin,
         'cat_tokens_size': reader.cat_tokens_size,
         'attr_tokens_size': reader.attr_tokens_size,
-        'embed_size': 100,
-        'attr_cat_embed_size': 10,
+        'embed_size': 256,
+        'attr_cat_embed_size': 30,
         'filter_sizes': [2,3,4,5],
         'max_query_length': reader.maximums_query[0],
         'max_product_name_length': reader.maximums_product_name[0],
@@ -95,7 +97,7 @@ def main():
         'cat_char_trigram_indices': tf.placeholder(
             tf.int32, shape=[None, mconfig['max_cat_length']*5], name=CAT_CHAR_TRIGRAM_INDICES),
         'cat_tokens': tf.placeholder(tf.int32, shape=[None,], name=CAT_TOKENS),
-        'cats_in_product': tf.placeholder(tf.int32, shape=[None,], name=CATS_IN_PRODUCT),
+        'cat_in_product': tf.placeholder(tf.int32, shape=[None,], name=CATS_IN_PRODUCT),
         'attr_unigram_indices': tf.placeholder(
             tf.int32, shape=[None, mconfig['max_attr_length']], name=ATTR_UNIGRAM_INDICES),
         'attr_bigram_indices': tf.placeholder(
@@ -103,8 +105,9 @@ def main():
         'attr_char_trigram_indices': tf.placeholder(
             tf.int32, shape=[None, mconfig['max_attr_length']*5], name=ATTR_CHAR_TRIGRAM_INDICES),
         'attr_tokens': tf.placeholder(tf.int32, shape=[None,], name=ATTR_TOKENS),
-        'attrs_in_product': tf.placeholder(tf.int32, shape=[None,], name=ATTRS_IN_PRODUCT),
-        'free_features': tf.placeholder(tf.float32, shape=[None, len(reader.precomputed)], name=FREE_FEATURES),
+        'attr_in_product': tf.placeholder(tf.int32, shape=[None,], name=ATTRS_IN_PRODUCT),
+        'features': tf.placeholder(tf.float32, shape=[None, len(reader.precomputed)], name=FREE_FEATURES),
+        'training': False
     }
 
     ranker = SemRanker(
@@ -125,42 +128,7 @@ def main():
     )
 
     score = ranker(
-        query_indices=[
-            receiver_tensors['query_unigram_indices'],
-            receiver_tensors['query_bigram_indices'],
-            receiver_tensors['query_char_trigram_indices'],
-        ],
-        product_name_indices=[
-            receiver_tensors['product_unigram_indices'],
-            receiver_tensors['product_bigram_indices'],
-            receiver_tensors['product_char_trigram_indices']
-        ],
-        brand_indices=[
-            receiver_tensors['brand_unigram_indices'],
-            receiver_tensors['brand_bigram_indices'],
-            receiver_tensors['brand_char_trigram_indices']
-        ],
-        author_indices=[
-            receiver_tensors['author_unigram_indices'],
-            receiver_tensors['author_bigram_indices'],
-            receiver_tensors['author_char_trigram_indices']
-        ],
-        cat_indices=[
-            receiver_tensors['cat_unigram_indices'],
-            receiver_tensors['cat_bigram_indices'],
-            receiver_tensors['cat_char_trigram_indices']
-        ],
-        attr_indices=[
-            receiver_tensors['attr_unigram_indices'],
-            receiver_tensors['attr_bigram_indices'],
-            receiver_tensors['attr_char_trigram_indices']
-        ],
-        cat_tokens=receiver_tensors['cat_tokens'],
-        attr_tokens=receiver_tensors['attr_tokens'],
-        cats_in_product=receiver_tensors['cats_in_product'],
-        attrs_in_product=receiver_tensors['attrs_in_product'],
-        free_features=receiver_tensors['free_features'],
-        training=False
+        **receiver_tensors 
     )
 
     import shutil
@@ -177,6 +145,7 @@ def main():
     with tf.Session() as sess:
         saver.restore(sess, "checkpoint/model.ckpt-%s" % args.model)
 
+        del receiver_tensors['training']
         tf.saved_model.simple_save(
             sess, "export", 
             inputs=receiver_tensors, 
