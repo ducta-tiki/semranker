@@ -276,12 +276,12 @@ public class Converter {
         );
     }
 
-    public float[][] convertFreeFeatures(float[][] features, float precomputed_min, float precomputed_max){
+    public float[][] convertFreeFeatures(float[][] features, float[] precomputed_min, float[] precomputed_max){
         float[][] normalizedFeatures = IntStream.range(0, features.length).mapToObj(n ->{
             float[] z = new float[features[n].length];
             Arrays.fill(z, 0.f);
             for(int i =0; i<z.length;i++){
-                z[i] = (features[n][i] - precomputed_min)/precomputed_max;
+                z[i] = (features[n][i] - precomputed_min[i])/precomputed_max[i];
             }
             return z;
         }).toArray(float[][]::new);
