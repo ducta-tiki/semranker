@@ -25,7 +25,7 @@ public class SemRankerPredict {
     String PRODUCT_CHAR_TRIGRAM_INDICES = "product_char_trigram_indices:0";
     String BRAND_UNIGRAM_INDICES = "brand_unigram_indices:0";
     String BRAND_BIGRAM_INDICES = "brand_bigram_indices:0";
-    String BRAND_CHAR_TRIGRAM_INDICES = "brand_char_trigram_indices;0";
+    String BRAND_CHAR_TRIGRAM_INDICES = "brand_char_trigram_indices:0";
     String AUTHOR_UNIGRAM_INDICES = "author_unigram_indices:0";
     String AUTHOR_BIGRAM_INDICES = "author_bigram_indices:0";
     String AUTHOR_CHAR_TRIGRAM_INDICES = "author_char_trigram_indices:0";

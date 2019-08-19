@@ -175,6 +175,7 @@ public class Converter {
                 int[] z3 = new int[catCharTrigramMaxSeqLen];
                 Arrays.fill(z3, zeroIdx);
                 charTrigramIndices.add(z3);
+                continue;
             }
             int count = 0;
             for(String t: zz){
@@ -247,6 +248,7 @@ public class Converter {
                 int[] z3 = new int[attrCharTrigramMaxSeqLen];
                 Arrays.fill(z3, zeroIdx);
                 charTrigramIndices.add(z3);
+                continue;
             }
             int count = 0;
             for(String t: zz){
