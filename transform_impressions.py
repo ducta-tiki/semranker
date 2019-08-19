@@ -6,8 +6,8 @@ import queue
 
 q = queue.Queue()
 
-input_dir = 'eval_split_queries'
-output_dir = 'eval_transform_impressions'
+input_dir = 'split_queries'
+output_dir = 'transform_impressions'
 
 def worker():
     while True:

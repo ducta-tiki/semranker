@@ -242,7 +242,7 @@ if __name__ == "__main__":
     import requests
     from pprint import pprint
     # query = "từ điển điện tử"
-    # query = "tv"
+    #query = "tv"
     # query = "iphone màu đen"
     # query = "apple watch"
     # query = "realme 3 pro"
@@ -268,6 +268,7 @@ if __name__ == "__main__":
     # query = 'mực máy in ts707'
     # query = 'dán điện thoại a5 2017'
     # query = 'kềm kẹp cua'
+    query = 've sinh da mat'
     # query = 'băng keo cá nhân doremon'
     # query = 'bộ quần áo siêu nhân siêu anh hùng cho bé trai'
     # query = "quần đùi thể thao"
@@ -276,16 +277,26 @@ if __name__ == "__main__":
     # query = 'ô long viện'
     # query = 'ốp lương cho nokia 3.1'
     # query = 'vạt vật vận hành'
-    # resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=500" % query)
-    # products = list(map(lambda x: x.get("id"), json.loads(resp.text)['data']['data']))
+    # query = "ốp điện thoại samsung j7 plus"
+    # query = "bình sữa brown"
+    # query = "chân váy họa tiết phối lưới"
+    # query = "galaxy note"
+    # query = "lop hoc mat ngu"
+    # query = "quần giả váy bầu"
+    #query = "tai nghe iphone 5s"
+    # query = "đồng hồ quả lắc có chuông"
+    # query = "loa bluetooth mini kết nối tai nghe"
+    # query = "dr. spi  arthritis"
+    # query = "binh sua dr brown thủy tinh"
+    # query = "cap sac dai 3m"
+    resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=1000" % query)
+    products = list(map(lambda x: x.get("id"), json.loads(resp.text)['data']['data']))
+    
+    # interactions = "14605408#1|12420824#1|8420238#1|16154149#1|11913722#0|14663074#0|11913931#0|11897505#0|11897160#0|16162604#0|8974363#0|854733#0|2430497#0|454312#0|11895249#0|14677794#0|854715#0|11598225#0|2430501#0|11889779#0|454309#0|2430499#0|16993273#0|453377#0|14683682#0|11598221#0|11598236#0|453381#0|11598228#0|453379#0|4502785#0|452348#0|13955343#0|574459#0|511158#0|7962785#1|15405231#1|7900457#0|9816520#0|9814746#0|711152#0|7955042#0|2692703#0|2692715#0|2692713#0|574488#0|15288103#1|2692699#1|17994060#0|574435#0|14154671#0|2692705#0|574470#0|14757868#1|1000544#0|8183980#1|7818998#0|19421740#1|19903890#1|2692717#0|574440#0|574481#0|7819006#0|2692711#0|7907193#0|7954964#0|14757870#0|7187943#0|14678617#0|20506527#0|13829077#0|16611666#0|14458932#0|13829065#0|13779127#0|13132599#0|16052206#0|13803493#0|17986616#0|22179458#1|21082909#0|23491938#0|23494057#0|23363904#0|23493817#0|23638215#0|24843828#0"
+    # qids = sorted([x.split("#") for x in interactions.split("|")], key=lambda x: x[1], reverse=True)
+    # qids = [x[0] for x in qids]
 
-    query = "hộp thiếc"
-    interactions = "14605408#1|12420824#1|8420238#1|16154149#1|11913722#0|14663074#0|11913931#0|11897505#0|11897160#0|16162604#0|8974363#0|854733#0|2430497#0|454312#0|11895249#0|14677794#0|854715#0|11598225#0|2430501#0|11889779#0|454309#0|2430499#0|16993273#0|453377#0|14683682#0|11598221#0|11598236#0|453381#0|11598228#0|453379#0|4502785#0|452348#0|13955343#0|574459#0|511158#0|7962785#1|15405231#1|7900457#0|9816520#0|9814746#0|711152#0|7955042#0|2692703#0|2692715#0|2692713#0|574488#0|15288103#1|2692699#1|17994060#0|574435#0|14154671#0|2692705#0|574470#0|14757868#1|1000544#0|8183980#1|7818998#0|19421740#1|19903890#1|2692717#0|574440#0|574481#0|7819006#0|2692711#0|7907193#0|7954964#0|14757870#0|7187943#0|14678617#0|20506527#0|13829077#0|16611666#0|14458932#0|13829065#0|13779127#0|13132599#0|16052206#0|13803493#0|17986616#0|22179458#1|21082909#0|23491938#0|23494057#0|23363904#0|23493817#0|23638215#0|24843828#0"
-    qids = sorted([x.split("#") for x in interactions.split("|")], key=lambda x: x[1], reverse=True)
-    qids = [x[0] for x in qids]
-
-    pred_score, ret_products = predictor.fit(query, qids)
-
+    pred_score, ret_products = predictor.fit(query, products)
 
     for i, p in enumerate(ret_products):
         p['pos'] = i

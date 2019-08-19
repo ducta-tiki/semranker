@@ -45,7 +45,8 @@ public class SemRankerPredict {
     Map<String, Integer> vocab = null;
     Map<String, Integer> catTokens = null;
     Map<String, Integer> attrTokens = null;
-    Map<String, Integer[]> precomputed = null;
+    Map<String, float[]> precomputed = null;
+    String[] featureKeys = null;
     int maxQueryLength = 0;
     int maxProductNameLength = 0;
     int maxBrandLength = 0;
@@ -171,11 +172,19 @@ public class SemRankerPredict {
         try{
             Object obj = parser.parse(new FileReader(precomputedPath));
             JSONObject jsonObject = (JSONObject) obj;
+            featureKeys = new String[jsonObject.size()-1];
+
+            int i = 0;
+            for(Object v: (JSONArray)jsonObject.get("__key_order__")){
+                featureKeys[i] = v.toString();
+                i += 1;
+            }
 
             for(Object k: jsonObject.keySet()){
-                this.precomputed.put((String)k, new Integer[2]);
-                this.precomputed.get(k)[0] = (Integer)((JSONArray)jsonObject.get(k)).get(0);
-                this.precomputed.get(k)[1] = (Integer)((JSONArray)jsonObject.get(k)).get(1);
+                if(k.equals("__key_order__")) continue;
+                this.precomputed.put((String)k, new float[2]);
+                this.precomputed.get(k)[0] = ((Double)((JSONArray)jsonObject.get(k)).get(0)).floatValue();
+                this.precomputed.get(k)[1] = ((Double)((JSONArray)jsonObject.get(k)).get(1)).floatValue();
             }
         }catch (Exception e){
             e.printStackTrace();
@@ -185,13 +194,13 @@ public class SemRankerPredict {
         try{
             Object obj = parser.parse(new FileReader(hyperParamsPath));
             JSONObject hyperParams = (JSONObject) obj;
-            this.maxQueryLength = (int)hyperParams.get("max_query_length");
-            this.maxProductNameLength = (int)hyperParams.get("max_product_name_length");
-            this.maxBrandLength = (int)hyperParams.get("max_brand_length");
-            this.maxAuthorLength = (int)hyperParams.get("max_author_length");
-            this.maxCatLength = (int)hyperParams.get("max_cat_length");
-            this.maxAttrLength = (int)hyperParams.get("max_attr_length");
-            this.unknownBin = (int)hyperParams.get("unknown_bin");
+            this.maxQueryLength = ((Long)hyperParams.get("max_query_length")).intValue();
+            this.maxProductNameLength = ((Long)hyperParams.get("max_product_name_length")).intValue();
+            this.maxBrandLength = ((Long)hyperParams.get("max_brand_length")).intValue();
+            this.maxAuthorLength = ((Long)hyperParams.get("max_author_length")).intValue();
+            this.maxCatLength = ((Long)hyperParams.get("max_cat_length")).intValue();
+            this.maxAttrLength = ((Long)hyperParams.get("max_attr_length")).intValue();
+            this.unknownBin = ((Long)hyperParams.get("unknown_bin")).intValue();
         }catch (Exception e){
             e.printStackTrace();
         }

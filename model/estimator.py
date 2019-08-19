@@ -105,6 +105,7 @@ def semranker_fn(features, labels, mode, params):
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         train_op = tf.group([train_op, update_ops])
         # train_op = tf.no_op()
+        # train_op = tf.group([update_ops])
     else:
         train_op = None
         training_hooks = []

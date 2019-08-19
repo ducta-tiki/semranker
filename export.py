@@ -53,7 +53,7 @@ def main():
         'unknown_bin': reader.unknown_bin,
         'cat_tokens_size': reader.cat_tokens_size,
         'attr_tokens_size': reader.attr_tokens_size,
-        'embed_size': 256,
+        'embed_size': 128,
         'attr_cat_embed_size': 30,
         'filter_sizes': [2,3,4,5],
         'max_query_length': reader.maximums_query[0],

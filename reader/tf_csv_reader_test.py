@@ -58,8 +58,6 @@ class CsvSemRankerReaderTest(tf.test.TestCase):
     #                 print("range: %d" % _)
     #                 results = sess.run(tensors)
 
-    #                 import numpy as np
-    #                 np.save("test_csv.npy", results[0])
 
 if __name__ == "__main__":
     tf.test.main()

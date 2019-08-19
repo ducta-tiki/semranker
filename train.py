@@ -27,7 +27,7 @@ def main():
         'unknown_bin': reader.unknown_bin,
         'cat_tokens_size': reader.cat_tokens_size,
         'attr_tokens_size': reader.attr_tokens_size,
-        'embed_size': 256,
+        'embed_size': 128,
         'attr_cat_embed_size': 30,
         'filter_sizes': [2,3,4,5],
         'max_query_length': reader.maximums_query[0],
@@ -45,10 +45,10 @@ def main():
         'decay_learning_rate_ratio': 0.9,
         'momentum': 0.9,
         'step_print_logs': 10,
-        'batch_size': 100,
+        'batch_size': 80,
         'max_steps': 4000000,
-        'save_checkpoint_steps': 200,
-        'keep_checkpoint_max': 20
+        'save_checkpoint_steps': 1000,
+        'keep_checkpoint_max': 5
     }
 
     params = {'model': mconfig, 'train': pconfig, 'using_gpu': True}

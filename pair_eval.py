@@ -22,6 +22,7 @@ for f in os.listdir("eval_transform_impressions"):
             pnk = [z.split("#") for z in pk]
             rel = []
             pids = []
+            negs = []
             for p in pnk:
                 pids.append(p[0])
                 if p[1] == '2':
@@ -53,7 +54,7 @@ for f in os.listdir("eval_transform_impressions"):
             sorted_products = sorted(ret_products, key=lambda x: x.get('score'), reverse=True)
 
             ret_ndcg = ndcg(
-                range(1, len(sorted_products)+1), [x['rel'] for x in sorted_products])
+                range(1, len(sorted_products)+1)[:100], [x['rel'] for x in sorted_products][:100])
             
             if ret_ndcg > 0.:
                 cum_ndcg += ret_ndcg
@@ -61,11 +62,11 @@ for f in os.listdir("eval_transform_impressions"):
                 if count == 1000:
                     break
                 if ret_ndcg > 0.7:
-                    f1.write(query + "\n")
+                    f1.write(query + ":%0.4f" % ret_ndcg + "\n")
                 if ret_ndcg <= 0.7 and ret_ndcg > 0.6:
-                    f2.write(query + "\n")
+                    f2.write(query + ":%0.4f" % ret_ndcg + "\n")
                 if ret_ndcg <= 0.6:
-                    f3.write(query + "\n")
+                    f3.write(query + ":%0.4f" % ret_ndcg + "\n")
             if count % 200 == 0:
                 f1.flush()
                 f2.flush()

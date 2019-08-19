@@ -148,15 +148,21 @@ class CsvSemRankerReader(object):
                     else:
                         neg.append(p[0])
                 n = len(pos)
+                if n > 20:
+                    n = 10
+                    pos = random.sample(pos, n)
                 if n == 0: 
                     n = len(zero)
+                    if n > 20:
+                        n = 10
+                        zero = random.sample(zero, n)
                     if n:
-                        neg = random.sample(self.product_ids, min(len(neg), int(n*1.5)))
+                        neg = random.sample(neg, min(len(neg), int(n*12)))
                     else:
-                        neg = random.sample(self.product_ids, 8)
+                        continue
                 else:
                     zero = random.sample(zero, min(len(zero), n*6))
-                    neg = random.sample(self.product_ids, n*4) + random.sample(neg, min(len(neg), n*3))
+                    neg = random.sample(self.product_ids, n*2) + random.sample(neg, min(len(neg), n*10))
 
                 for samples, l in zip([pos, zero, neg], [2,1,0]):
                     for s in samples:

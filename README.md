@@ -12,3 +12,5 @@ scp -r transform_impressions/  ubuntu@3.83.35.218:~/semranker/
 conda create --name tf-1.13.1 tensorflow-gpu==1.13.1 python=3.6.7
 
 https://github.com/shu-yusa/tensorflow-mirrored-strategy-sample/blob/master/cnn_mnist.py
+
+grep -Ril "text-to-find-here" /

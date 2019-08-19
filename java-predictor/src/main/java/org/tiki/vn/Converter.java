@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 
 public class Converter {
@@ -273,5 +274,18 @@ public class Converter {
                 bigramIndices.toArray(new int[0][]),
                 charTrigramIndices.toArray(new int[0][])
         );
+    }
+
+    public float[][] convertFreeFeatures(float[][] features, float precomputed_min, float precomputed_max){
+        float[][] normalizedFeatures = IntStream.range(0, features.length).mapToObj(n ->{
+            float[] z = new float[features[n].length];
+            Arrays.fill(z, 0.f);
+            for(int i =0; i<z.length;i++){
+                z[i] = (features[n][i] - precomputed_min)/precomputed_max;
+            }
+            return z;
+        }).toArray(float[][]::new);
+
+        return normalizedFeatures;
     }
 }

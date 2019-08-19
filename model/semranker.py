@@ -189,13 +189,17 @@ class SemRanker(object):
                 kernel_initializer=tf.random_normal_initializer(mean=0, stddev=0.01),
                 activation=tf.nn.tanh
             )
+            vl = tf.layers.Dense(
+                self.embed_size, activation=tf.nn.tanh, name="common_dense")
+
+            product_features = vl(v1)
             product_features = tf.layers.batch_normalization(
                                 v1, training=training)
             product_features = tf.identity(product_features, name="product_encode")
 
+            query_features = vl(embed_queries)
             query_features = tf.layers.batch_normalization(
                                 embed_queries, training=training)
-            query_features = tf.nn.tanh(query_features)
             query_features = tf.identity(query_features, name="query_features")
 
         s = tf.nn.l2_normalize(product_features, 1) * tf.nn.l2_normalize(query_features, 1)
