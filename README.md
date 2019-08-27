@@ -13,4 +13,6 @@ conda create --name tf-1.13.1 tensorflow-gpu==1.13.1 python=3.6.7
 
 https://github.com/shu-yusa/tensorflow-mirrored-strategy-sample/blob/master/cnn_mnist.py
 
-grep -Ril "text-to-find-here" /
+grep -r "text-to-find-here" /
+
+gsutils cp gs://tiki-disco/product_impressions/*.csv .

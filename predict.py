@@ -248,7 +248,7 @@ if __name__ == "__main__":
     # query = "realme 3 pro"
     # query = "chuột dây"
     # query = 'xiaomi'
-    # query = 'innis free'
+    query = 'innis free'
     # query = 'máy rung'
     # query = 'dày nữ'
     # query = 'sac du phong iphone'
@@ -267,7 +267,7 @@ if __name__ == "__main__":
     # query = '1451dha001'
     # query = 'mực máy in ts707'
     # query = 'dán điện thoại a5 2017'
-    # query = 'kềm kẹp cua'
+    query = 'kềm kẹp cua'
     # query = 've sinh da mat'
     # query = 'băng keo cá nhân doremon'
     # query = 'bộ quần áo siêu nhân siêu anh hùng cho bé trai'
@@ -287,10 +287,17 @@ if __name__ == "__main__":
     # query = "đồng hồ quả lắc có chuông"
     # query = "loa bluetooth mini kết nối tai nghe"
     # query = "dr. spi  arthritis"
-    # query = "binh sua dr brown thủy tinh"
+    query = "bình sữa brown"
     # query = "cap sac dai 3m"
     # query = "máy nướng bánh mỳ"
     # query = "sách giao tiếp tiếng nhật"
+    # query = "balo học nữ"
+    # query = "ruột bút máy"
+    # query = "miến che màn hình 21.5 inch"
+    # query = "tủ , lạnh mini"
+    # query = "điện thoại cổ"
+    # query = "sạc anker 18w"
+    query = "thảm tập yoga mt"
     resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=200" % query)
     products = list(map(lambda x: x.get("id"), json.loads(resp.text)['data']['data']))
     

@@ -45,7 +45,7 @@ def main():
         'decay_learning_rate_ratio': 0.9,
         'momentum': 0.9,
         'step_print_logs': 10,
-        'batch_size': 80,
+        'batch_size': 100,
         'max_steps': 4000000,
         'save_checkpoint_steps': 1000,
         'keep_checkpoint_max': 5
