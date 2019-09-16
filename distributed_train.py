@@ -11,7 +11,7 @@ def main():
     reader = CsvSemRankerReader(
         pair_paths=list_files,
         precomputed_path="meta/precomputed.json",
-        product_db="db/tiki-products.db",
+        product_db="data/product.csv",
         vocab_path="meta/vocab.txt",
         cat_tokens_path="meta/cats.txt",
         attr_tokens_path="meta/attrs.txt",
