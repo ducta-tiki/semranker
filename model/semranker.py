@@ -199,7 +199,7 @@ class SemRanker(object):
             query_features = vl(embed_queries)
             
             query_features = tf.layers.batch_normalization(
-                                embed_queries, training=training)
+                                query_features, training=training)
             query_features = tf.identity(query_features, name="query_features")
 
         s = tf.nn.l2_normalize(product_features, 1) * tf.nn.l2_normalize(query_features, 1)
