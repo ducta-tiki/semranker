@@ -28,8 +28,8 @@ def main():
         'unknown_bin': reader.unknown_bin,
         'cat_tokens_size': reader.cat_tokens_size,
         'attr_tokens_size': reader.attr_tokens_size,
-        'embed_size': 100,
-        'attr_cat_embed_size': 10,
+        'embed_size': 128,
+        'attr_cat_embed_size': 50,
         'filter_sizes': [2,3,4,5],
         'max_query_length': reader.maximums_query[0],
         'max_product_name_length': reader.maximums_product_name[0],
@@ -46,7 +46,7 @@ def main():
         'decay_learning_rate_ratio': 0.1,
         'momentum': 0.9,
         'step_print_logs': 10,
-        'batch_size': 1024,
+        'batch_size': 512,
         'max_steps': 4000000,
         'save_checkpoint_steps': 500,
         'keep_checkpoint_max': 10
@@ -54,7 +54,7 @@ def main():
 
     params = {'model': mconfig, 'train': pconfig, 'using_gpu': True}
 
-    distribution = tf.contrib.distribute.MirroredStrategy(num_gpus=4)
+    distribution = tf.contrib.distribute.MirroredStrategy(num_gpus=2)
 
 
     session_config = tf.ConfigProto(
