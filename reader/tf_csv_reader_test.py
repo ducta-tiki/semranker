@@ -11,7 +11,7 @@ class CsvSemRankerReaderTest(tf.test.TestCase):
 
     def testGenerateBatch(self):
         self.reader = CsvSemRankerReader(
-            pair_paths=["../pairs.csv"],
+            pair_paths=["../transform_impressions/q-32.csv"],
             precomputed_path="../meta/precomputed.json",
             product_db="../data/product.csv",
             vocab_path="../meta/vocab.txt",
@@ -32,7 +32,7 @@ class CsvSemRankerReaderTest(tf.test.TestCase):
 
                 inputs = results[0]
                 labels = results[1]
-
+                print(labels)
     # def testVerifyTrainingData(self):
     #     for i in range(1):
     #         tf.reset_default_graph()

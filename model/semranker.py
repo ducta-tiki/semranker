@@ -23,6 +23,7 @@ class SemRanker(object):
         self.unknown_bin = unknown_bin
         self.cat_tokens_size = cat_tokens_size
         self.attr_tokens_size = attr_tokens_size
+        self.pos_embed_size = 100
 
     def reduce_in_product(self, h, tokens_embed, in_product):
         h_pool_flat = tf.concat([h, tokens_embed], axis=1) # sum_of(in_product) x (embed_size + token_embed_size)
@@ -52,6 +53,32 @@ class SemRanker(object):
         attr_indices = [ attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices]
 
         with tf.variable_scope("embedding"):
+            pos_query_unigram_embed = tf.get_variable(
+                'pos_query_unigram_embedding', [self.max_query_length, self.pos_embed_size],
+                initializer=tf.random_uniform_initializer(minval=-1., maxval=1.)
+            )
+            pos_query_bigram_embed = tf.get_variable(
+                'pos_query_bigram_embedding', [self.max_query_length, self.pos_embed_size],
+                initializer=tf.random_uniform_initializer(minval=-1., maxval=1.)
+            )
+            pos_query_trigram_embed = tf.get_variable(
+                'pos_query_trigram_embedding', [self.max_query_length*5, self.pos_embed_size],
+                initializer=tf.random_uniform_initializer(minval=-1., maxval=1.)
+            )
+
+            pos_product_name_unigram_embed = tf.get_variable(
+                'pos_product_name_unigram_embedding', [self.max_product_name_length, self.pos_embed_size],
+                initializer=tf.random_uniform_initializer(minval=-1., maxval=1.)
+            )
+            pos_product_name_bigram_embed = tf.get_variable(
+                'pos_product_name_bigram_embedding', [self.max_product_name_length, self.pos_embed_size],
+                initializer=tf.random_uniform_initializer(minval=-1., maxval=1.)
+            )
+            pos_product_name_trigram_embed = tf.get_variable(
+                'pos_product_name_trigram_embedding', [self.max_product_name_length*5, self.pos_embed_size],
+                initializer=tf.random_uniform_initializer(minval=-1., maxval=1.)
+            )
+
             ngram_embed_weights = tf.get_variable(
                 'n_gram_embedding', [self.vocab_size+self.unknown_bin, self.embed_size],
                 initializer=tf.random_uniform_initializer(minval=-1., maxval=1.)
@@ -72,11 +99,17 @@ class SemRanker(object):
             )
             attr_embed_weights = tf.concat(
                 [attr_embed_weights, zero_vector_attr_cat], axis=0, name="zero_padding_attr_embedding")
+
         with tf.name_scope("calc_embedding_feature"):
             embed_queries = []
-            for qz, name in zip(query_indices, ['unigram', 'bigram', 'char_trigram']):
-                qz_embed = tf.nn.embedding_lookup(ngram_embed_weights, qz)
-
+            for qz, name, pos, max_sq in zip(query_indices, ['unigram', 'bigram', 'char_trigram'], 
+                        [pos_query_unigram_embed, pos_query_bigram_embed, pos_query_trigram_embed],
+                        [self.max_query_length, self.max_query_length, self.max_query_length*5]):
+                qz_embed = tf.nn.embedding_lookup(ngram_embed_weights, qz) #batch_size x max_query_length x embed_size
+                batch_size = tf.shape(qz_embed)[0]
+                t_pos = tf.tile(pos, [batch_size, 1])
+                t_pos = tf.reshape(t_pos, [batch_size, max_sq, self.pos_embed_size])
+                qz_embed = tf.concat([qz_embed, t_pos], axis=2)
                 embed_queries.append(
                     tf.reduce_mean(tf.transpose(qz_embed, [0, 2, 1]), axis=2))
 
@@ -84,8 +117,14 @@ class SemRanker(object):
             embed_queries = tf.identity(embed_queries, name="query_encode")
 
             embed_product_names = []
-            for pz, name in zip(product_name_indices, ['unigram', 'bigram', 'char_trigram']):
+            for pz, name, pos, max_sq in zip(product_name_indices, ['unigram', 'bigram', 'char_trigram'],
+                [pos_product_name_unigram_embed, pos_product_name_bigram_embed, pos_product_name_trigram_embed],
+                [self.max_product_name_length, self.max_product_name_length, self.max_product_name_length*5]):
                 pz_embed = tf.nn.embedding_lookup(ngram_embed_weights, pz)
+                batch_size = tf.shape(pz)[0]
+                t_pos = tf.tile(pos, [batch_size, 1])
+                t_pos = tf.reshape(t_pos, [batch_size, max_sq, self.pos_embed_size])
+                pz_embed = tf.concat([pz_embed, t_pos], axis=2)
                 embed_product_names.append(
                     tf.reduce_mean(tf.transpose(pz_embed, [0, 2, 1]), axis=2))
 
@@ -145,12 +184,12 @@ class SemRanker(object):
             
             v1 = tf.layers.dense(
                 product_features,
-                units=self.embed_size,
+                units=self.embed_size+self.pos_embed_size,
                 kernel_initializer=tf.random_normal_initializer(mean=0, stddev=0.01),
                 activation=tf.nn.tanh
             )
             vl = tf.layers.Dense(
-                self.embed_size, activation=tf.nn.tanh, name="common_dense")
+                self.embed_size+self.pos_embed_size, activation=tf.nn.tanh, name="common_dense")
 
             product_features = vl(v1)
             product_features = tf.layers.batch_normalization(
@@ -158,6 +197,7 @@ class SemRanker(object):
             product_features = tf.identity(product_features, name="product_encode")
 
             query_features = vl(embed_queries)
+            
             query_features = tf.layers.batch_normalization(
                                 embed_queries, training=training)
             query_features = tf.identity(query_features, name="query_features")

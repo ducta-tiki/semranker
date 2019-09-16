@@ -13,8 +13,8 @@ f3 = open("lower_0.6.txt", "w")
 
 count = 0
 cum_ndcg = 0.
-for f in os.listdir("eval_transform_impressions"):
-    fpath = os.path.join("eval_transform_impressions", f)
+for f in os.listdir("overfit"):
+    fpath = os.path.join("overfit", f)
     with open(fpath, 'r') as fobj:
         for j, r in enumerate(csv.reader(fobj)):
             query = r[0]
@@ -31,6 +31,7 @@ for f in os.listdir("eval_transform_impressions"):
                     rel.append(1)
                 else:
                     rel.append(0)
+                # rel.append(float(p[2]))
 
             try:
                 score, ret_products = predictor.fit(query, pids)

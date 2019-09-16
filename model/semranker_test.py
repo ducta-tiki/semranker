@@ -70,6 +70,7 @@ class SemRankerTest(tf.test.TestCase):
         self.products = [p1, p2, p3]
         self.queries = ['ổ cứng', 'samsung 850', 'vở tập tô']
         self.target = [2, 1, 0] # positive, impressed, negative
+        self.weights = [1., 1., 1.]
 
         for p in self.products:
             self.add_to_vocab(query_preprocessing(p['product_name']))
@@ -548,7 +549,9 @@ class SemRankerTest(tf.test.TestCase):
         tf.reset_default_graph()
         inputs = self.init_graph()
 
-        loss = semranker_loss(self.target, inputs['score'] , tf.cast(inputs['number_of_queries'], tf.float32))
+        loss = semranker_loss(tf.constant(self.target), 
+                tf.constant(self.weights), inputs['score'] , 
+                tf.cast(inputs['number_of_queries'], tf.float32))
 
         global_step = tf.train.get_or_create_global_step()
         opt = tf.train.MomentumOptimizer(

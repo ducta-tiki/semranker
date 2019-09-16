@@ -157,12 +157,14 @@ class CsvSemRankerReader(object):
                         n = 4
                         zero = random.sample(zero, n)
                     if n:
-                        neg = random.sample(neg, min(len(neg), int(n*12)))
+                        # neg = random.sample(neg, min(len(neg), int(n*12)))
+                        neg = random.sample(self.product_ids, n*10)
                     else:
                         continue
                 else:
                     zero = random.sample(zero, min(len(zero), n*6))
-                    neg = random.sample(self.product_ids, n*2) + random.sample(neg, min(len(neg), n*10))
+                    # neg = random.sample(self.product_ids, n*2) + random.sample(neg, min(len(neg), n*10))
+                    neg = random.sample(self.product_ids, n*10)
 
                 for samples, l in zip([pos, zero, neg], [2,1,0]):
                     for s in samples:
@@ -172,6 +174,7 @@ class CsvSemRankerReader(object):
                             qids.append(count_keyword)
                             products.append(product)
                             labels.append(l)
+
             product_names = list(map(lambda x: x.get("name"), products))
             brands = list(map(lambda x: x.get("brand"), products))
             authors = list(map(lambda x: x.get("author"), products))
@@ -312,6 +315,7 @@ class CsvSemRankerReader(object):
             features = tf.reshape(features, [-1, len(self.precomputed)])
             labels = tf.reshape(labels, [-1])
             qids = tf.reshape(qids, [-1])
+            # weights = tf.reshape(weights, [-1])
 
             return {
                 'query_unigram_indices' :query_unigram_indices, 
@@ -338,7 +342,7 @@ class CsvSemRankerReader(object):
                 'attr_char_trigram_indices': attr_char_trigram_indices, 
                 'features':features,
                 'number_of_queries': number_of_queries,
-                'qids': qids}, labels
+                'qids': qids}, {"labels":labels} #{"labels":labels, "weights": weights}
         return _inside
 
 

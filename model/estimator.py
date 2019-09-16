@@ -81,7 +81,8 @@ def semranker_fn(features, labels, mode, params):
             export_outputs={'predict_output': tf.estimator.export.PredictOutput(predictions)}
         )
     else:
-        loss = semranker_loss(labels, score, 
+        # loss = semranker_loss(labels["labels"], labels["weights"], score, 
+        loss = semranker_loss(labels["labels"], None, score, 
             tf.cast(number_of_queries, tf.float32))
     
     if is_training:
@@ -91,7 +92,7 @@ def semranker_fn(features, labels, mode, params):
         qids = features.get('qids')
         zndcg = tf.py_function(
                     py_eval_func, 
-                    [labels, score, qids], 
+                    [labels["labels"], score, qids], 
                     [tf.float32])
         zndcg = tf.reshape(zndcg, [-1])
         ndcg_metrics = tf.reduce_mean(zndcg)
