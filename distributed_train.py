@@ -29,7 +29,7 @@ def main():
         'cat_tokens_size': reader.cat_tokens_size,
         'attr_tokens_size': reader.attr_tokens_size,
         'embed_size': 128,
-        'attr_cat_embed_size': 50,
+        'attr_cat_embed_size': 64,
         'filter_sizes': [2,3,4,5],
         'max_query_length': reader.maximums_query[0],
         'max_product_name_length': reader.maximums_product_name[0],
