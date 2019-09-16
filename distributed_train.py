@@ -59,7 +59,7 @@ def main():
 
     session_config = tf.ConfigProto(
         allow_soft_placement=True,
-        operation_timeout_in_ms=10000)
+        operation_timeout_in_ms=1000000)
 
     # build config for trainning
     run_config = tf.estimator.RunConfig(
