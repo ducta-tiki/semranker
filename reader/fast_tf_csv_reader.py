@@ -2,7 +2,6 @@ import csv
 import random
 import multiprocessing.queues
 from multiprocessing import Process, Manager
-from multiprocessing.managers import BaseManager, NamespaceProxy
 import time
 import numpy as np
 import pyhash
@@ -10,6 +9,9 @@ import inspect
 import json
 from vn_lang import query_preprocessing
 from reader.convert import convert_strings, convert_cats, convert_attrs, convert_features
+from reader.sqlite_product import create_connection, get_product, get_fields, \
+    random_sample, get_all_product_ids
+import pickle
 
 
 class SharedCounter(object):
@@ -140,29 +142,31 @@ class MetaData:
         self.attr_zero_idx = len(self.attr_tokens)
         for i, w in enumerate(self.attr_tokens):
             self.attr_token_2_idx[w] = i
+        
+        self.conn = create_connection(product_db)
+        self.headers = get_fields(self.conn)
 
-        self.product_dict = {}
-        with open(product_db, "r") as fobj:
-            csv_reader= csv.DictReader(fobj)
-            for i, r in enumerate(csv_reader):
-                r = dict(r)
-                r["name"] = query_preprocessing(r.get("name"))
-                r["brand"] = query_preprocessing(r.get("brand"))
-                r["author"] = " ".join([query_preprocessing(z) for z in r.get("author")])
-                self.product_dict[r.get("product_id")] = r
-                # if i % 100000 == 0:
-                #     print("Loaded %d products" % i)
-
-        self.product_ids =  list(self.product_dict.keys())
-
-    def get(self, pid):
-        return self.product_dict.get(pid)
-
-    def sample(self, n):
-        return random.sample(self.product_ids, n*7)
+        self.product_ids = get_all_product_ids(self.conn)
+    
+    def get_product(self, product_id):
+        product = get_product(self.conn, product_id)
+        if product:
+            ret = dict(zip(self.headers, product))
+            if len(ret['name']):
+                for k in ret:
+                    if k in self.precomputed:
+                        if len(ret[k]) == 0:
+                            ret[k] = 0.
+                        else:
+                            ret[k] = float(ret[k])
+            else:
+                return None
+            return ret
+        return None
 
 
-def worker(wid, paths, 
+def worker(wid, product_dict,
+    paths, 
     queue, limit_sample, batch_size,
     precomputed_path,
     product_db,
@@ -179,6 +183,7 @@ def worker(wid, paths,
     fobjs = []
     readers = []
     hasher = pyhash.murmur3_32()
+    
     def unknown_to_idx():
         def _inside(unknown):
             return hasher(unknown) % unknown_bin
@@ -195,6 +200,7 @@ def worker(wid, paths,
             cat_tokens_path, attr_tokens_path, maximums_query,
             maximums_product_name, maximums_brand, maximums_author,
             maximums_cat, maximums_attr, unknown_bin)
+    product_ids = meta_inst.product_ids
     print("Metadata loaded worker %d!" % wid)
 
     total_sample = 0
@@ -244,24 +250,22 @@ def worker(wid, paths,
                         n = 4
                         zero = random.sample(zero, n)
                     if n:
-                        # neg = meta_inst.sample(n*7)
+                        neg = random.sample(product_ids, n*7)
                         pass
                     else:
                         continue
                 else:
                     zero = random.sample(zero, min(len(zero), n*6))
-                    # neg = meta_inst.sample(n*7)
+                    neg = random.sample(product_ids, n*7)
                 
                 for samples, l in zip([pos, zero, neg], [2,1,0]):
                     for s in samples:
                         product = meta_inst.get(s)
-                        # if product:
-                        #     queries.append(keyword)
-                        #     qids.append(count_keyword)
-                        #     products.append(product)
-                        #     labels.append(l)
-                        queries.append(keyword)
-                        labels.append(l)
+                        if product:
+                            queries.append(keyword)
+                            qids.append(count_keyword)
+                            products.append(product)
+                            labels.append(l)
 
             # product_names = list(map(lambda x: x.get("name"), products))
             # brands = list(map(lambda x: x.get("brand"), products))
@@ -334,7 +338,7 @@ def worker(wid, paths,
             #    attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices,
             #    features, count_keyword, qids, labels
             # ])
-            queue.put([product, queries, labels])
+            queue.put([products, queries, labels])
             total_sample += 1
         if total_sample > limit_sample:
             queue.put(None)
@@ -356,7 +360,11 @@ class ProducerManager:
         maximums_attr=[10, 10, 20], #for unigram, bigram, character trigrams
         unknown_bin=8012, 
         n_workers=8, limit_sample=1000, batch_size=10):
-        
+
+        manager = Manager()
+        with open(product_db, "rb") as fobj:
+            product_dict = manager.dict(pickle.load(fobj))
+
         self.queue = PatchQueue(ctx=multiprocessing.get_context())
         paths = sorted(paths)
         self.procs = []
@@ -365,6 +373,7 @@ class ProducerManager:
         for i in range(n_workers):
             sub_paths = paths[i*c:(i+1)*c]
             p = Process(target=worker, args=(i,
+                product_dict,
                 sub_paths, self.queue, limit_sample, 
                 batch_size,
                 precomputed_path,
@@ -408,11 +417,16 @@ if __name__ == "__main__":
 
     m = ProducerManager(paths, 
         "/Users/asm/semranker/meta/precomputed.json",
-        "/Users/asm/semranker/data/product.csv",
+        "/Users/asm/semranker/data/product.pkl",
         "/Users/asm/semranker/meta/vocab.txt",
         "/Users/asm/semranker/meta/cats.txt",
         "/Users/asm/semranker/meta/attrs.txt")
 
-    r = m.get_batch()
-    print(r)
-    m.get_batch()
+    # r = m.get_batch()
+    # print(r)
+    # m.get_batch()
+    
+
+    with open("product.pkl", "rb") as fobj:
+        product_dict = pickle.load(fobj)
+    

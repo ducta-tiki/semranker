@@ -39,6 +39,17 @@ def get_product(conn, product_id):
     
     return None
 
+
+def get_all_product_ids(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT product_id FROM product")
+ 
+    rows = cur.fetchall()
+    rows = list(rows)
+    
+    return rows
+
+
 def random_sample(conn, num_of_samples=1):
     cur = conn.cursor()
 
