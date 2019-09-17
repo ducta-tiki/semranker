@@ -99,7 +99,10 @@ def semranker_fn(features, labels, mode, params):
         tensors_to_log = {'loss': loss, 'ndcg': ndcg_metrics}
         logging_hook = tf.train.LoggingTensorHook(
             tensors=tensors_to_log, every_n_iter=pconfig.get('step_print_logs', 5))
-        training_hooks = [logging_hook]
+        hook = tf.train.ProfilerHook(save_steps=20,
+                output_dir="profiler",
+                show_memory=True)
+        training_hooks = [logging_hook, hook]
 
         grads = opt.compute_gradients(loss)
         train_op = opt.apply_gradients(grads, global_step=global_step)

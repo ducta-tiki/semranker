@@ -11,7 +11,6 @@ from vn_lang import query_preprocessing
 from reader.convert import convert_strings, convert_cats, convert_attrs, convert_features
 from reader.sqlite_product import create_connection, get_product, get_fields, \
     random_sample, get_all_product_ids
-import pickle
 
 
 class SharedCounter(object):
@@ -144,28 +143,21 @@ class MetaData:
             self.attr_token_2_idx[w] = i
         
         self.conn = create_connection(product_db)
-        self.headers = get_fields(self.conn)
+        self.headers = get_fields(self.conn, table_name="products")
 
-        self.product_ids = get_all_product_ids(self.conn)
+        self.product_ids = get_all_product_ids(self.conn, table_name="products")
     
     def get_product(self, product_id):
-        product = get_product(self.conn, product_id)
+        if not isinstance(product_id, str):
+            print(product_id)
+        product = get_product(self.conn, product_id, table_name="products")
         if product:
             ret = dict(zip(self.headers, product))
-            if len(ret['name']):
-                for k in ret:
-                    if k in self.precomputed:
-                        if len(ret[k]) == 0:
-                            ret[k] = 0.
-                        else:
-                            ret[k] = float(ret[k])
-            else:
-                return None
             return ret
         return None
 
 
-def worker(wid, product_dict,
+def worker(wid,
     paths, 
     queue, limit_sample, batch_size,
     precomputed_path,
@@ -205,7 +197,7 @@ def worker(wid, product_dict,
 
     total_sample = 0
     while True:
-        if queue.qsize() > 10000:
+        if queue.qsize() > 100:
             time.sleep(0.5)
         
         for _ in range(50):
@@ -214,7 +206,9 @@ def worker(wid, product_dict,
             products = []
             qids = []
             count_keyword = 0
-
+            unique_queries = []
+            count_qs = []
+            count_t = 0
             for k in range(batch_size):
                 idx = k % len(readers)
                 reader = readers[idx]
@@ -258,91 +252,143 @@ def worker(wid, product_dict,
                     zero = random.sample(zero, min(len(zero), n*6))
                     neg = random.sample(product_ids, n*7)
                 
+                count_q = 0
                 for samples, l in zip([pos, zero, neg], [2,1,0]):
                     for s in samples:
-                        product = meta_inst.get(s)
+                        product = meta_inst.get_product(s)
                         if product:
+                            count_q += 1
                             queries.append(keyword)
                             qids.append(count_keyword)
                             products.append(product)
                             labels.append(l)
+                if count_q:
+                    unique_queries.append(keyword)
+                    count_qs.append(count_q)
 
-            # product_names = list(map(lambda x: x.get("name"), products))
-            # brands = list(map(lambda x: x.get("brand"), products))
-            # authors = list(map(lambda x: x.get("author"), products))
-            # categories = list(map(lambda x: x.get('categories'), products))
-            # attributes = list(map(lambda x: x.get('attributes'), products))
-            # features = list(map(lambda x: [x.get(h) for h in meta_inst.precomputed], products))
-            # precomputed_features_min = [meta_inst.precomputed.get(h)[0] for h in meta_inst.precomputed]
-            # precomputed_features_max = [meta_inst.precomputed.get(h)[1] for h in meta_inst.precomputed]
+            query_unigram_indices = []
+            query_bigram_indices = []
+            query_char_trigram_indices = []
 
+            for q, r in zip(unique_queries, count_qs):
+                u, b, t =  \
+                convert_strings(
+                    [q], meta_inst.token_2_idx, meta_inst.zero_idx, 
+                    meta_inst.maximums_query[0], meta_inst.maximums_query[1], meta_inst.maximums_query[2], 
+                    unknown_to_idx())
+                query_unigram_indices.append(np.tile(u, (r, 1)))
+                query_bigram_indices.append(np.tile(b, (r, 1)))
+                query_char_trigram_indices.append(np.tile(t, (r, 1)))
+            query_unigram_indices = np.concatenate(query_unigram_indices, axis=0)
+            query_bigram_indices = np.concatenate(query_bigram_indices, axis=0)
+            query_char_trigram_indices = np.concatenate(query_char_trigram_indices, axis=0)
+
+            product_unigram_indices = []
+            product_bigram_indices = []
+            product_char_trigram_indices = []
+
+            brand_unigram_indices = []
+            brand_bigram_indices = []
+            brand_char_trigram_indices = []
+
+            author_unigram_indices = []
+            author_bigram_indices = []
+            author_char_trigram_indices = []
+
+            cat_tokens = []
+            cat_in_product = []
+            cat_unigram_indices = []
+            cat_bigram_indices = []
+            cat_char_trigram_indices = []
+
+            for p in products:
+                product_unigram_indices.append(
+                    np.frombuffer(p.get("product_unigram_indices"), dtype=np.int32))
+                product_bigram_indices.append(
+                    np.frombuffer(p.get("product_unigram_indices"), dtype=np.int32))
+                product_char_trigram_indices.append(
+                    np.frombuffer(p.get("product_unigram_indices"), dtype=np.int32))
+                brand_unigram_indices.append(
+                    np.frombuffer(p.get("brand_unigram_indices"), dtype=np.int32))
+                brand_bigram_indices.append(
+                    np.frombuffer(p.get("brand_bigram_indices"), dtype=np.int32))
+                brand_char_trigram_indices.append(
+                    np.frombuffer(p.get("brand_char_trigram_indices"), dtype=np.int32))
+                author_unigram_indices.append(
+                    np.frombuffer(p.get("author_unigram_indices"), dtype=np.int32))
+                author_bigram_indices.append(
+                    np.frombuffer(p.get("author_bigram_indices"), dtype=np.int32))
+                author_char_trigram_indices.append(
+                    np.frombuffer(p.get("author_char_trigram_indices"), dtype=np.int32))
+                cat_tokens.append(
+                    np.frombuffer(p.get("cat_tokens"), dtype=np.int32)
+                )
+                
+                cip = int(np.frombuffer(p.get("cat_in_product"), dtype=np.int32))
+                cat_in_product.append(cip)
+                cat_unigram_indices.append(
+                    np.reshape(np.frombuffer(p.get("cat_unigram_indices"), dtype=np.int32), 
+                    (cip, meta_inst.maximums_cat[0]))
+                )
+                cat_bigram_indices.append(
+                    np.reshape(np.frombuffer(p.get("cat_bigram_indices"), dtype=np.int32), 
+                    (cip, meta_inst.maximums_cat[1]))
+                )
+                cat_char_trigram_indices.append(
+                    np.reshape(np.frombuffer(p.get("cat_char_trigram_indices"), dtype=np.int32), 
+                    (cip, meta_inst.maximums_cat[1]))
+                )
+
+            product_unigram_indices = np.stack(product_unigram_indices)
+            product_bigram_indices = np.stack(product_bigram_indices)
+            product_char_trigram_indices = np.stack(product_char_trigram_indices)
+
+            brand_unigram_indices = np.stack(brand_unigram_indices)
+            brand_bigram_indices = np.stack(brand_bigram_indices)
+            brand_char_trigram_indices = np.stack(brand_char_trigram_indices)
+
+            author_unigram_indices = np.stack(author_unigram_indices)
+            author_bigram_indices = np.stack(author_bigram_indices)
+            author_char_trigram_indices = np.stack(author_char_trigram_indices)
+
+            cat_tokens = np.concatenate(cat_tokens)
+            cat_in_product = np.array(cat_in_product, dtype=np.int32)
+            cat_unigram_indices = np.concatenate(cat_unigram_indices, axis=0)
+            cat_bigram_indices = np.concatenate(cat_bigram_indices, axis=0)
+            cat_char_trigram_indices = np.concatenate(cat_char_trigram_indices, axis=0)
+            
+            # print(product_unigram_indices.shape, query_unigram_indices.shape)
             # query_unigram_indices, query_bigram_indices, query_char_trigram_indices =  \
             #     convert_strings(
             #         queries, meta_inst.token_2_idx, meta_inst.zero_idx, 
             #         meta_inst.maximums_query[0], meta_inst.maximums_query[1], meta_inst.maximums_query[2], 
             #         unknown_to_idx())
             
-            # product_unigram_indices, product_bigram_indices, product_char_trigram_indices =  \
-            #     convert_strings(
-            #         product_names, meta_inst.token_2_idx, meta_inst.zero_idx, 
-            #         meta_inst.maximums_product_name[0], meta_inst.maximums_product_name[1], meta_inst.maximums_product_name[2], 
-            #         unknown_to_idx())
 
-            # brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices =  \
-            #     convert_strings(
-            #         brands, meta_inst.token_2_idx, meta_inst.zero_idx, 
-            #         meta_inst.maximums_brand[0], meta_inst.maximums_brand[1], meta_inst.maximums_brand[2], 
-            #         unknown_to_idx())
+            labels = np.asarray(labels, dtype=np.int32)
+            qids = np.asarray(qids, dtype=np.int32)
 
-            # author_unigram_indices, author_bigram_indices, author_char_trigram_indices =  \
-            #     convert_strings(
-            #         authors, meta_inst.token_2_idx, meta_inst.zero_idx, 
-            #         meta_inst.maximums_author[0], meta_inst.maximums_author[1], meta_inst.maximums_author[2], 
-            #         unknown_to_idx())
-
-            # cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices = \
-            #     convert_cats(
-            #         categories,
-            #         meta_inst.token_2_idx,
-            #         meta_inst.cat_token_2_idx,
-            #         meta_inst.zero_idx,
-            #         meta_inst.cat_zero_idx,
-            #         unknown_to_idx(),
-            #         meta_inst.maximums_cat[0], meta_inst.maximums_cat[1], meta_inst.maximums_cat[2]
-            #     )
-
-            # attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices = \
-            #     convert_attrs(
-            #         attributes,
-            #         meta_inst.token_2_idx,
-            #         meta_inst.attr_token_2_idx,
-            #         meta_inst.zero_idx,
-            #         meta_inst.attr_zero_idx,
-            #         unknown_to_idx(),
-            #         meta_inst.maximums_attr[0], meta_inst.maximums_attr[1], meta_inst.maximums_attr[2]
-            #     )
-
-            # features = convert_features(
-            #     features, precomputed_features_min, precomputed_features_max)
-
-            # labels = np.asarray(labels, dtype=np.int32)
-            # qids = np.asarray(qids, dtype=np.int32)
-
-            # print(labels)
-            # queue.put([
-            #     query_unigram_indices, query_bigram_indices, query_char_trigram_indices, 
-            #    product_unigram_indices, product_bigram_indices, product_char_trigram_indices, 
-            #    brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, 
-            #    author_unigram_indices, author_bigram_indices, author_char_trigram_indices, 
-            #    cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices,
+            queue.put([
+               query_unigram_indices, query_bigram_indices, query_char_trigram_indices, 
+               product_unigram_indices, product_bigram_indices, product_char_trigram_indices, 
+               brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, 
+               author_unigram_indices, author_bigram_indices, author_char_trigram_indices, 
+               cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices,
             #    attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices,
             #    features, count_keyword, qids, labels
-            # ])
-            queue.put([products, queries, labels])
+            ])
+
             total_sample += 1
+            if total_sample > limit_sample:
+                queue.put(None)
+                break
+            
         if total_sample > limit_sample:
-            queue.put(None)
+            # queue.put(None)
             break
+    meta_inst.conn.close()
+    print("Worker-%d Exiting" % wid)
+
 
 
 class ProducerManager:
@@ -359,11 +405,8 @@ class ProducerManager:
         maximums_cat=[10, 10, 20], #for unigram, bigram, character trigrams
         maximums_attr=[10, 10, 20], #for unigram, bigram, character trigrams
         unknown_bin=8012, 
-        n_workers=8, limit_sample=1000, batch_size=10):
+        n_workers=8, limit_sample=10, batch_size=256):
 
-        manager = Manager()
-        with open(product_db, "rb") as fobj:
-            product_dict = manager.dict(pickle.load(fobj))
 
         self.queue = PatchQueue(ctx=multiprocessing.get_context())
         paths = sorted(paths)
@@ -373,7 +416,6 @@ class ProducerManager:
         for i in range(n_workers):
             sub_paths = paths[i*c:(i+1)*c]
             p = Process(target=worker, args=(i,
-                product_dict,
                 sub_paths, self.queue, limit_sample, 
                 batch_size,
                 precomputed_path,
@@ -388,7 +430,7 @@ class ProducerManager:
                 maximums_cat,
                 maximums_attr,
                 unknown_bin
-            ))
+            ),daemon=True)
             self.procs.append(p)
         
         for p in self.procs:
@@ -412,21 +454,22 @@ class ProducerManager:
 
 if __name__ == "__main__":
     import os
-    base_dir = "/Users/asm/semranker/transform_impressions"
+    base_dir = "/home/asm/semranker/transform_impressions"
     paths = [os.path.join(base_dir, f) for f in os.listdir(base_dir)]
 
     m = ProducerManager(paths, 
-        "/Users/asm/semranker/meta/precomputed.json",
-        "/Users/asm/semranker/data/product.pkl",
-        "/Users/asm/semranker/meta/vocab.txt",
-        "/Users/asm/semranker/meta/cats.txt",
-        "/Users/asm/semranker/meta/attrs.txt")
+        "/home/asm/semranker/meta/precomputed.json",
+        "/home/asm/semranker/db/precomputed-products.db",
+        "/home/asm/semranker/meta/vocab.txt",
+        "/home/asm/semranker/meta/cats.txt",
+        "/home/asm/semranker/meta/attrs.txt")
 
-    # r = m.get_batch()
-    # print(r)
-    # m.get_batch()
-    
+    print("Warmup 20 seconds")
+    time.sleep(20)
 
-    with open("product.pkl", "rb") as fobj:
-        product_dict = pickle.load(fobj)
-    
+    begin_ = time.time()
+    for _ in range(10):
+        m.get_batch()
+    end_ = time.time()
+
+    print("Get 100 batch in:%0.4f" % (end_ - begin_))
