@@ -301,6 +301,14 @@ def worker(wid,
             cat_bigram_indices = []
             cat_char_trigram_indices = []
 
+            attr_tokens = []
+            attr_in_product = [] 
+            attr_unigram_indices = [] 
+            attr_bigram_indices = [] 
+            attr_char_trigram_indices = []
+
+            features = []
+
             for p in products:
                 product_unigram_indices.append(
                     np.frombuffer(p.get("product_unigram_indices"), dtype=np.int32))
@@ -320,10 +328,10 @@ def worker(wid,
                     np.frombuffer(p.get("author_bigram_indices"), dtype=np.int32))
                 author_char_trigram_indices.append(
                     np.frombuffer(p.get("author_char_trigram_indices"), dtype=np.int32))
+
                 cat_tokens.append(
                     np.frombuffer(p.get("cat_tokens"), dtype=np.int32)
                 )
-                
                 cip = int(np.frombuffer(p.get("cat_in_product"), dtype=np.int32))
                 cat_in_product.append(cip)
                 cat_unigram_indices.append(
@@ -337,6 +345,28 @@ def worker(wid,
                 cat_char_trigram_indices.append(
                     np.reshape(np.frombuffer(p.get("cat_char_trigram_indices"), dtype=np.int32), 
                     (cip, meta_inst.maximums_cat[1]))
+                )
+
+                attr_tokens.append(
+                    np.frombuffer(p.get("attr_tokens"), dtype=np.int32)
+                )
+                aip = int(np.frombuffer(p.get("attr_in_product"), dtype=np.int32))
+                attr_in_product.append(aip)
+                attr_unigram_indices.append(
+                   np.reshape(np.frombuffer(p.get("attr_unigram_indices"), dtype=np.int32), 
+                    (aip, meta_inst.maximums_atrr[0])) 
+                )
+                attr_bigram_indices.append(
+                   np.reshape(np.frombuffer(p.get("attr_bigram_indices"), dtype=np.int32), 
+                    (aip, meta_inst.maximums_atrr[1])) 
+                )
+                attr_char_trigram_indices.append(
+                   np.reshape(np.frombuffer(p.get("attr_char_trigram_indices"), dtype=np.int32), 
+                    (aip, meta_inst.maximums_atrr[2])) 
+                )
+
+                features.append(
+                    np.frombuffer(p.get("features"), dtype=np.float32)
                 )
 
             product_unigram_indices = np.stack(product_unigram_indices)
@@ -357,13 +387,13 @@ def worker(wid,
             cat_bigram_indices = np.concatenate(cat_bigram_indices, axis=0)
             cat_char_trigram_indices = np.concatenate(cat_char_trigram_indices, axis=0)
             
-            # print(product_unigram_indices.shape, query_unigram_indices.shape)
-            # query_unigram_indices, query_bigram_indices, query_char_trigram_indices =  \
-            #     convert_strings(
-            #         queries, meta_inst.token_2_idx, meta_inst.zero_idx, 
-            #         meta_inst.maximums_query[0], meta_inst.maximums_query[1], meta_inst.maximums_query[2], 
-            #         unknown_to_idx())
-            
+            attr_tokens = np.concatenate(attr_tokens)
+            attr_in_product = np.array(attr_in_product, dtype=np.int32)
+            attr_unigram_indices = np.concatenate(attr_unigram_indices, axis=0)
+            attr_bigram_indices = np.concatenate(attr_bigram_indices, axis=0)
+            attr_char_trigram_indices = np.concatenate(attr_char_trigram_indices, axis=0)
+
+            features = np.stack(features)
 
             labels = np.asarray(labels, dtype=np.int32)
             qids = np.asarray(qids, dtype=np.int32)
@@ -374,8 +404,8 @@ def worker(wid,
                brand_unigram_indices, brand_bigram_indices, brand_char_trigram_indices, 
                author_unigram_indices, author_bigram_indices, author_char_trigram_indices, 
                cat_tokens, cat_in_product, cat_unigram_indices, cat_bigram_indices, cat_char_trigram_indices,
-            #    attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices,
-            #    features, count_keyword, qids, labels
+               attr_tokens, attr_in_product, attr_unigram_indices, attr_bigram_indices, attr_char_trigram_indices,
+               features, count_keyword, qids, labels
             ])
 
             total_sample += 1
