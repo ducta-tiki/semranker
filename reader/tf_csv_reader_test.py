@@ -11,7 +11,7 @@ class CsvSemRankerReaderTest(tf.test.TestCase):
 
     def testGenerateBatch(self):
         self.reader = CsvSemRankerReader(
-            pair_paths=["../transform_impressions/q-32.csv"],
+            pair_paths=["../overfit/q-1.csv"],
             precomputed_path="../meta/precomputed.json",
             product_db="../data/product.csv",
             vocab_path="../meta/vocab.txt",
@@ -21,18 +21,19 @@ class CsvSemRankerReaderTest(tf.test.TestCase):
             maximums_product_name=[50, 50, 250], #for unigram, bigram, character trigrams
             maximums_brand=[10, 10, 50],
             maximums_author=[10, 10, 50],
-            maximums_cat=[10, 10, 50], #for unigram, bigram, character trigrams
-            maximums_attr=[10, 10, 50], #for unigram, bigram, character trigrams
+            maximums_cat=[10, 10, 20], #for unigram, bigram, character trigrams
+            maximums_attr=[10, 10, 20], #for unigram, bigram, character trigrams
         )
-        tensors = self.reader.get_batch(batch_size=128)
+        tensors = self.reader.get_batch(batch_size=2)
 
         with self.cached_session() as sess:
-            for _ in range(3):
+            for _ in range(1):
                 results = sess.run(tensors)
 
                 inputs = results[0]
                 labels = results[1]
-                print(labels)
+                # print(inputs['product_unigram_indices'])
+                print(results)
     # def testVerifyTrainingData(self):
     #     for i in range(1):
     #         tf.reset_default_graph()

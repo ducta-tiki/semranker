@@ -1,5 +1,6 @@
 import tensorflow as tf
 from reader.tf_csv_reader import CsvSemRankerReader
+from reader.fast_tf_csv_reader import ProducerManager
 from model.estimator import semranker_fn
 import os
 
@@ -8,20 +9,46 @@ def main():
         os.path.join("transform_impressions", f) 
             for f in os.listdir("transform_impressions") if f.endswith(".csv")]
     
-    reader = CsvSemRankerReader(
-        pair_paths=list_files,
+    # reader = CsvSemRankerReader(
+    #     pair_paths=list_files,
+    #     precomputed_path="meta/precomputed.json",
+    #     product_db="data/product.csv",
+    #     vocab_path="meta/vocab.txt",
+    #     cat_tokens_path="meta/cats.txt",
+    #     attr_tokens_path="meta/attrs.txt",
+    #     maximums_query=[25, 25, 125],#for unigram, bigram, character trigrams
+    #     maximums_product_name=[50, 50, 250], #for unigram, bigram, character trigrams
+    #     maximums_brand=[10, 10, 50],
+    #     maximums_author=[10, 10, 50],
+    #     maximums_cat=[10, 10, 20], #for unigram, bigram, character trigrams
+    #     maximums_attr=[10, 10, 20], #for unigram, bigram, character trigrams
+    # )
+
+    pconfig = {
+        'init_learning_rate': 0.01,
+        'step_change_learning_rate': 100000,
+        'decay_learning_rate_ratio': 0.9,
+        'momentum': 0.9,
+        'step_print_logs': 10,
+        'batch_size': 85,
+        'max_steps': 4000000,
+        'save_checkpoint_steps': 2000,
+        'keep_checkpoint_max': 20
+    }
+
+    reader = ProducerManager(list_files, 
         precomputed_path="meta/precomputed.json",
-        product_db="data/product.csv",
+        product_db= "db/precomputed-products.db",
         vocab_path="meta/vocab.txt",
         cat_tokens_path="meta/cats.txt",
         attr_tokens_path="meta/attrs.txt",
-        maximums_query=[25, 25, 125],#for unigram, bigram, character trigrams
-        maximums_product_name=[50, 50, 250], #for unigram, bigram, character trigrams
+        maximums_query=[25, 25, 125],
+        maximums_product_name=[50, 50, 250],
         maximums_brand=[10, 10, 50],
         maximums_author=[10, 10, 50],
-        maximums_cat=[10, 10, 50], #for unigram, bigram, character trigrams
-        maximums_attr=[10, 10, 50], #for unigram, bigram, character trigrams
-    )
+        maximums_cat=[10, 10, 20],
+        maximums_attr=[10, 10, 20],
+        n_workers=10, limit_sample=100000000, batch_size=pconfig['batch_size'], warmup=90)
 
     mconfig = {
         'vocab_size': reader.vocab_size,
@@ -77,7 +104,8 @@ def main():
     )
 
     dnn_ranker.train(
-        input_fn=reader.input_fn_generator(pconfig['batch_size']),
+        # input_fn=reader.input_fn_generator(pconfig['batch_size']),
+        input_fn=reader.input_fn_generator(),
         max_steps=pconfig['max_steps'])
 
 

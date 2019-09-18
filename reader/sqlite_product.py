@@ -55,7 +55,7 @@ def get_batch_product_ids(conn, limit, offset):
     cur.execute("SELECT product_id FROM product LIMIT %d OFFSET %d" % (limit, offset))
  
     rows = cur.fetchall()
-    rows = list(rows)
+    rows = [r[0] for r in list(rows)]
     cur.close()
     return rows
 

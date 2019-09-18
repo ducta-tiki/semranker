@@ -91,7 +91,7 @@ class CsvSemRankerReader(object):
                     r = dict(r)
                     r["name"] = query_preprocessing(r.get("name"))
                     r["brand"] = query_preprocessing(r.get("brand"))
-                    r["author"] = " ".join([query_preprocessing(z) for z in r.get("author")])
+                    r["author"] = query_preprocessing(r.get("author"))
                     self.product_dict[r.get("product_id")] = r
                     if i % 100000 == 0:
                         print("Loaded %d products" % i)
@@ -147,24 +147,24 @@ class CsvSemRankerReader(object):
                         zero.append(p[0])
                     else:
                         neg.append(p[0])
-                n = len(pos)
-                if n > 6:
-                    n = 4
-                    pos = random.sample(pos, n)
-                if n == 0: 
-                    n = len(zero)
-                    if n > 6:
-                        n = 4
-                        zero = random.sample(zero, n)
-                    if n:
-                        # neg = random.sample(neg, min(len(neg), int(n*12)))
-                        neg = random.sample(self.product_ids, n*7)
-                    else:
-                        continue
-                else:
-                    zero = random.sample(zero, min(len(zero), n*6))
-                    # neg = random.sample(self.product_ids, n*2) + random.sample(neg, min(len(neg), n*10))
-                    neg = random.sample(self.product_ids, n*7)
+                # n = len(pos)
+                # if n > 6:
+                #     n = 4
+                #     pos = random.sample(pos, n)
+                # if n == 0: 
+                #     n = len(zero)
+                #     if n > 6:
+                #         n = 4
+                #         zero = random.sample(zero, n)
+                #     if n:
+                #         # neg = random.sample(neg, min(len(neg), int(n*12)))
+                #         neg = random.sample(self.product_ids, n*7)
+                #     else:
+                #         continue
+                # else:
+                #     zero = random.sample(zero, min(len(zero), n*6))
+                #     # neg = random.sample(self.product_ids, n*2) + random.sample(neg, min(len(neg), n*10))
+                #     neg = random.sample(self.product_ids, n*7)
 
                 for samples, l in zip([pos, zero, neg], [2,1,0]):
                     for s in samples:
