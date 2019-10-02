@@ -314,8 +314,8 @@ class AggregationFields(object):
 
 if __name__ == "__main__":
     MONGO_PORT = int(os.environ.get("MONGO_PORT", "27017"))
-    # MONGO_HOST = "mongodb://%s:%d/" % (os.environ.get("MONGO_HOST", "discovery-mongodb-1.svr.tiki.services"), MONGO_PORT)
-    MONGO_HOST = "mongodb://%s:%d/" % (os.environ.get("MONGO_HOST", "10.20.40.142"), MONGO_PORT)
+    # MONGO_HOST = "mongodb://%s:%d/" % (os.environ.get("MONGO_HOST", "vm-prod-discovery-mongodb-0.svr.tiki.services"), MONGO_PORT)
+    MONGO_HOST = "mongodb://%s:%d/" % (os.environ.get("MONGO_HOST", "10.8.6.40"), MONGO_PORT)
 
     aggf = AggregationFields(
         MONGO_HOST, "catalog_attribute", "category", "product")

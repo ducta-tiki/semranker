@@ -93,7 +93,8 @@ class MetaData:
         maximums_author=[10, 10, 50],
         maximums_cat=[10, 10, 20], #for unigram, bigram, character trigrams
         maximums_attr=[10, 10, 20], #for unigram, bigram, character trigrams
-        unknown_bin=8012):
+        unknown_bin=8012,
+        importance=None):
 
         self.vocab = []
         with open(vocab_path, 'r') as fobj:
@@ -147,7 +148,14 @@ class MetaData:
         self.headers = get_fields(self.conn, table_name="products")
 
         self.product_ids = get_all_product_ids(self.conn, table_name="products")
-    
+
+        self.importance = set()
+        if importance:
+            with open(importance, 'r') as fobj:
+                for l in fobj:
+                    if len(l.strip()):
+                        self.importance.add(l.strip())
+
     def get_product(self, product_id):
         product = get_product(self.conn, product_id, table_name="products")
         if product:
@@ -170,11 +178,11 @@ def worker(wid,
     maximums_author,
     maximums_cat,
     maximums_attr,
-    unknown_bin):
+    unknown_bin,
+    importance):
     fobjs = []
     readers = []
     hasher = pyhash.murmur3_32()
-    
     def unknown_to_idx():
         def _inside(unknown):
             return hasher(unknown) % unknown_bin
@@ -189,16 +197,17 @@ def worker(wid,
             precomputed_path, product_db, vocab_path, 
             cat_tokens_path, attr_tokens_path, maximums_query,
             maximums_product_name, maximums_brand, maximums_author,
-            maximums_cat, maximums_attr, unknown_bin)
+            maximums_cat, maximums_attr, unknown_bin, importance)
     product_ids = meta_inst.product_ids
     print("Data worker %d started" % wid)
 
     total_sample = 0
     while True:
         if queue.qsize() > 1000:
-            time.sleep(0.2)
+            time.sleep(0.1)
+            continue
         
-        for _ in range(50):
+        for _ in range(64):
             queries = []
             labels = []
             products = []
@@ -207,11 +216,14 @@ def worker(wid,
             unique_queries = []
             count_qs = []
             count_t = 0
-            for k in range(batch_size):
+            pz = list(range(batch_size))
+            random.shuffle(pz)
+            for k in pz:
                 idx = k % len(readers)
                 reader = readers[idx]
-                r = next(reader)
-                if r is None:
+                try:
+                    r = next(reader)
+                except StopIteration:
                     # reset reader
                     fobj = fobjs[idx].seek(0)
                     r = next(reader)
@@ -233,7 +245,7 @@ def worker(wid,
                         zero.append(p[0])
                     else:
                         neg.append(p[0])
-                n = len(pos)
+                n = min(1, len(pos))
                 if n > 6:
                     n = 4
                     pos = random.sample(pos, n)
@@ -243,14 +255,14 @@ def worker(wid,
                         n = 4
                         zero = random.sample(zero, n)
                     if n:
-                        neg = random.sample(product_ids, n*7)
+                        neg = random.sample(product_ids, n*7) + random.sample(neg, min(len(neg), 8))
                         pass
                     else:
                         continue
                 else:
                     zero = random.sample(zero, min(len(zero), n*6))
-                    neg = random.sample(product_ids, n*7)
-                
+                    neg = random.sample(product_ids, n*7) + random.sample(neg, min(len(neg), 8))
+
                 count_q = 0
                 for samples, l in zip([pos, zero, neg], [2,1,0]):
                     for s in samples:
@@ -436,9 +448,8 @@ class ProducerManager:
         unknown_bin=8012, 
         n_workers=1, limit_sample=10, batch_size=2, warmup=60):
 
-
-        self.queue = PatchQueue(ctx=multiprocessing.get_context())
         paths = sorted(paths)
+        self.queue = PatchQueue(ctx=multiprocessing.get_context())
         self.procs = []
         c = int(len(paths) / n_workers)
 
@@ -586,7 +597,7 @@ class ProducerManager:
 
 if __name__ == "__main__":
     import os
-    base_dir = "/home/asm/semranker/overfit"
+    base_dir = "/home/asm/semranker/transform_impressions"
     paths = [os.path.join(base_dir, f) for f in os.listdir(base_dir)]
 
     # m = ProducerManager(paths, 
@@ -611,7 +622,7 @@ if __name__ == "__main__":
         "/home/asm/semranker/meta/vocab.txt",
         "/home/asm/semranker/meta/cats.txt",
         "/home/asm/semranker/meta/attrs.txt",
-        n_workers=1, limit_sample=10, batch_size=2, warmup=10)
+        n_workers=8, limit_sample=100000, batch_size=256, warmup=20)
 
     batch = m.get_batch()
     init_op = tf.initializers.global_variables()
@@ -619,9 +630,8 @@ if __name__ == "__main__":
     with tf.Session() as sess:
         sess.run(init_op)
         begin_ = time.time()
-        for _ in range(1):
+        for _ in range(1000):
             v = sess.run(batch)
-            print(v)
         end_ = time.time()
         print("Get 10 batch in:%0.4f" % (end_ - begin_))
 

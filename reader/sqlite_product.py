@@ -30,7 +30,10 @@ def get_fields(conn, table_name="product"):
 
 def get_product(conn, product_id, table_name="product"):
     cur = conn.cursor()
-    cur.execute("SELECT * FROM %s WHERE product_id='%s'" % (table_name, product_id))
+    if table_name == 'product':
+        cur.execute("SELECT * FROM %s INDEXED BY index_product WHERE product_id='%s'" % (table_name, product_id))
+    else:
+        cur.execute("SELECT * FROM %s WHERE product_id='%s'" % (table_name, product_id))
  
     rows = cur.fetchall()
     rows = list(rows)

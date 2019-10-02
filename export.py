@@ -44,8 +44,8 @@ def main():
         maximums_product_name=[50, 50, 250], #for unigram, bigram, character trigrams
         maximums_brand=[10, 10, 50],
         maximums_author=[10, 10, 50],
-        maximums_cat=[10, 10, 50], #for unigram, bigram, character trigrams
-        maximums_attr=[10, 10, 50], #for unigram, bigram, character trigrams
+        maximums_cat=[10, 10, 20], #for unigram, bigram, character trigrams
+        maximums_attr=[10, 10, 20], #for unigram, bigram, character trigrams
     )
 
     mconfig = {
@@ -95,7 +95,7 @@ def main():
         'cat_bigram_indices': tf.placeholder(
         tf.int32, shape=[None, mconfig['max_cat_length']], name=CAT_BIGRAM_INDICES),
         'cat_char_trigram_indices': tf.placeholder(
-            tf.int32, shape=[None, mconfig['max_cat_length']*5], name=CAT_CHAR_TRIGRAM_INDICES),
+            tf.int32, shape=[None, mconfig['max_cat_length']*2], name=CAT_CHAR_TRIGRAM_INDICES),
         'cat_tokens': tf.placeholder(tf.int32, shape=[None,], name=CAT_TOKENS),
         'cat_in_product': tf.placeholder(tf.int32, shape=[None,], name=CATS_IN_PRODUCT),
         'attr_unigram_indices': tf.placeholder(
@@ -103,7 +103,7 @@ def main():
         'attr_bigram_indices': tf.placeholder(
             tf.int32, shape=[None, mconfig['max_attr_length']], name=ATTR_BIGRAM_INDICES),
         'attr_char_trigram_indices': tf.placeholder(
-            tf.int32, shape=[None, mconfig['max_attr_length']*5], name=ATTR_CHAR_TRIGRAM_INDICES),
+            tf.int32, shape=[None, mconfig['max_attr_length']*2], name=ATTR_CHAR_TRIGRAM_INDICES),
         'attr_tokens': tf.placeholder(tf.int32, shape=[None,], name=ATTR_TOKENS),
         'attr_in_product': tf.placeholder(tf.int32, shape=[None,], name=ATTRS_IN_PRODUCT),
         'features': tf.placeholder(tf.float32, shape=[None, len(reader.precomputed)], name=FREE_FEATURES),

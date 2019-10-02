@@ -48,7 +48,7 @@ def main():
         maximums_author=[10, 10, 50],
         maximums_cat=[10, 10, 20],
         maximums_attr=[10, 10, 20],
-        n_workers=10, limit_sample=100000000, batch_size=pconfig['batch_size'], warmup=90)
+        n_workers=8, limit_sample=100000000, batch_size=pconfig['batch_size'], warmup=90)
 
     mconfig = {
         'vocab_size': reader.vocab_size,

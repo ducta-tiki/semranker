@@ -151,7 +151,7 @@ class SemRanker(object):
 
             embed_cat_tokens = tf.nn.embedding_lookup(cat_embed_weights, cat_tokens)
             embed_cat = []
-            for cz, name, scale in zip(cat_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
+            for cz, name in zip(cat_indices, ['unigram', 'bigram', 'char_trigram']):
                 cz_embed = tf.nn.embedding_lookup(ngram_embed_weights, cz)
                 embed_cat.append(
                     tf.reduce_mean(tf.transpose(cz_embed, [0, 2, 1]), axis=2))
@@ -162,7 +162,7 @@ class SemRanker(object):
 
             embed_attr_tokens = tf.nn.embedding_lookup(attr_embed_weights, attr_tokens)
             embed_attr = []
-            for attr_z, name, scale in zip(attr_indices, ['unigram', 'bigram', 'char_trigram'], [1,1,5]):
+            for attr_z, name in zip(attr_indices, ['unigram', 'bigram', 'char_trigram']):
                 attr_z_embed = tf.nn.embedding_lookup(ngram_embed_weights, attr_z)
                 embed_attr.append(
                     tf.reduce_mean(tf.transpose(attr_z_embed, [0, 2, 1]), axis=2))
