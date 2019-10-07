@@ -165,8 +165,8 @@ class MetaData:
 
 
 def worker(wid,
-    paths, 
-    queue, limit_sample, batch_size,
+    queue, csv_queue, 
+    limit_sample, batch_size,
     precomputed_path,
     product_db,
     vocab_path,
@@ -178,26 +178,19 @@ def worker(wid,
     maximums_author,
     maximums_cat,
     maximums_attr,
-    unknown_bin,
-    importance):
-    fobjs = []
-    readers = []
+    unknown_bin):
+
     hasher = pyhash.murmur3_32()
     def unknown_to_idx():
         def _inside(unknown):
             return hasher(unknown) % unknown_bin
         return _inside
-    for p in paths:
-        fobj = open(p, "r")
-        reader = csv.reader(fobj)
-        fobjs.append(fobj)
-        readers.append(reader)
-    
+
     meta_inst = MetaData(
             precomputed_path, product_db, vocab_path, 
             cat_tokens_path, attr_tokens_path, maximums_query,
             maximums_product_name, maximums_brand, maximums_author,
-            maximums_cat, maximums_attr, unknown_bin, importance)
+            maximums_cat, maximums_attr, unknown_bin)
     product_ids = meta_inst.product_ids
     print("Data worker %d started" % wid)
 
@@ -216,17 +209,9 @@ def worker(wid,
             unique_queries = []
             count_qs = []
             count_t = 0
-            pz = list(range(batch_size))
-            random.shuffle(pz)
-            for k in pz:
-                idx = k % len(readers)
-                reader = readers[idx]
-                try:
-                    r = next(reader)
-                except StopIteration:
-                    # reset reader
-                    fobj = fobjs[idx].seek(0)
-                    r = next(reader)
+
+            for k in range(batch_size):
+                r = csv_queue.get()
                 keyword = r[0]
                 r1 = r[1]
                 if len(keyword) == 0:
@@ -431,6 +416,58 @@ def worker(wid,
     print("Worker-%d Exiting" % wid)
 
 
+def csv_producer(paths, queue, importance, limit_sample=50000000):
+    fobjs = []
+    readers = []
+    for p in paths:
+        fobj = open(p, "r")
+        reader = csv.reader(fobj)
+        fobjs.append(fobj)
+        readers.append(reader)
+    dimp = set()
+    if importance:
+        with open(importance, "r") as fobj:
+            for l in fobj:
+                if len(l.strip().split()) <= 4:
+                    dimp.add(l.strip())
+    count = 0
+    while True:
+        if queue.qsize() > 1000:
+            time.sleep(0.1)
+            continue
+        pz = list(range(512))
+        random.shuffle(pz)
+
+        buffer = []
+        for k in pz:
+            idx = k % len(readers)
+            reader = readers[idx]
+            try:
+                r = next(reader)
+            except StopIteration:
+                # reset reader
+                fobj = fobjs[idx].seek(0)
+                r = next(reader)
+            if len(r) < 2:
+                continue
+            repeat = 1
+            keyword = r[0]
+            token_len = len(keyword.split())
+            is_important = keyword in dimp
+            if is_important:
+                if token_len <= 2:
+                    reqeat = 32
+                elif token_len >= 3 and token_len < 5:
+                    repeat = 16
+            count += 1
+            for _ in range(repeat):
+                buffer.append(r)
+        random.shuffle(buffer)
+        for r in buffer:
+            queue.put(r)
+        
+        if count > limit_sample:
+            break
 
 class ProducerManager:
     def __init__(self, paths, 
@@ -446,17 +483,25 @@ class ProducerManager:
         maximums_cat=[10, 10, 20], #for unigram, bigram, character trigrams
         maximums_attr=[10, 10, 20], #for unigram, bigram, character trigrams
         unknown_bin=8012, 
-        n_workers=1, limit_sample=10, batch_size=2, warmup=60):
+        n_workers=1, limit_sample=10, batch_size=2, warmup=60, importance=None):
 
         paths = sorted(paths)
         self.queue = PatchQueue(ctx=multiprocessing.get_context())
+        self.csv_queue = PatchQueue(ctx=multiprocessing.get_context())
         self.procs = []
         c = int(len(paths) / n_workers)
+        
+        p_csv_producer = Process(target=csv_producer, 
+                args=[paths, self.csv_queue, importance, limit_sample], 
+                daemon=True)
+        p_csv_producer.start()
+        time.sleep(5)
 
         for i in range(n_workers):
             sub_paths = paths[i*c:(i+1)*c]
             p = Process(target=worker, args=(i,
-                sub_paths, self.queue, limit_sample, 
+                self.queue, self.csv_queue, 
+                limit_sample, 
                 batch_size,
                 precomputed_path,
                 product_db,
@@ -472,7 +517,7 @@ class ProducerManager:
                 unknown_bin
             ),daemon=True)
             self.procs.append(p)
-        
+
         for p in self.procs:
             p.start()
 
@@ -622,7 +667,8 @@ if __name__ == "__main__":
         "/home/asm/semranker/meta/vocab.txt",
         "/home/asm/semranker/meta/cats.txt",
         "/home/asm/semranker/meta/attrs.txt",
-        n_workers=8, limit_sample=100000, batch_size=256, warmup=20)
+        n_workers=8, limit_sample=100000, batch_size=256, warmup=20,
+        importance="/home/asm/semranker/importance.txt")
 
     batch = m.get_batch()
     init_op = tf.initializers.global_variables()
@@ -630,8 +676,9 @@ if __name__ == "__main__":
     with tf.Session() as sess:
         sess.run(init_op)
         begin_ = time.time()
-        for _ in range(1000):
+        for _ in range(5):
             v = sess.run(batch)
+            print(v)
         end_ = time.time()
         print("Get 10 batch in:%0.4f" % (end_ - begin_))
 

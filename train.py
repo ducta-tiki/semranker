@@ -29,7 +29,7 @@ def main():
         'decay_learning_rate_ratio': 0.9,
         'momentum': 0.9,
         'step_print_logs': 10,
-        'batch_size': 85,
+        'batch_size': 156,
         'max_steps': 4000000,
         'save_checkpoint_steps': 2000,
         'keep_checkpoint_max': 20
@@ -47,7 +47,7 @@ def main():
         maximums_author=[10, 10, 50],
         maximums_cat=[10, 10, 20],
         maximums_attr=[10, 10, 20],
-        n_workers=10, limit_sample=100000000, batch_size=pconfig['batch_size'], warmup=90)
+        n_workers=8, limit_sample=100000000, batch_size=pconfig['batch_size'], warmup=20)
 
     mconfig = {
         'vocab_size': reader.vocab_size,
