@@ -6,6 +6,8 @@ from tensorflow.python.saved_model import tag_constants
 from reader.sqlite_product import create_connection, get_product, get_fields
 from reader.convert import convert_strings, convert_cats, convert_attrs, convert_features
 from vn_lang import query_preprocessing
+import time
+from tf_python_client import SemRankerClient
 
 # https://medium.com/@jsflo.dev/saving-and-loading-a-tensorflow-model-using-the-savedmodel-api-17645576527
 
@@ -24,7 +26,8 @@ class SemRankerPredict:
         max_cat_length=10, #for unigram, bigram, character trigrams
         max_attr_length=10, #for unigram, bigram, character trigram
         unknown_bin=8012,
-        using_gpu=False,
+        using_gpu=True,
+        using_tf_serving=False,
     ):
         self.vocab = []
         with open(vocab_path, 'r') as fobj:
@@ -79,15 +82,21 @@ class SemRankerPredict:
         self.conn = create_connection(product_db)
         self.headers = get_fields(self.conn)
 
-        if using_gpu:
-            # with tf.device("/gpu:0"):
-            self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
-            _ = loader.load(
-            self.sess, [tag_constants.SERVING], export_dir=checkpoint_path)
+        self.sess = None
+        if not using_tf_serving:
+            if using_gpu:
+                with tf.device("/gpu:0"):
+                    self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+                    _ = loader.load(
+                    self.sess, [tag_constants.SERVING], export_dir=checkpoint_path)
+            else:
+                self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+                _ = loader.load(
+                    self.sess, [tag_constants.SERVING], export_dir=checkpoint_path)
         else:
-            self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
-            _ = loader.load(
-                self.sess, [tag_constants.SERVING], export_dir=checkpoint_path)
+            self.client = SemRankerClient()
+
+        self.using_tf_serving = using_tf_serving
 
     def unknown_to_idx(self, unknown):
         return self.hasher(unknown) % self.unknown_bin
@@ -108,7 +117,7 @@ class SemRankerPredict:
             return ret
         return None
 
-    def fit(self, query, pids):
+    def fit(self, query, pids, verbose=False):
         products = []
         for pid in pids:
             product = self.get_product(str(pid))
@@ -118,7 +127,7 @@ class SemRankerPredict:
         queries = [query_preprocessing(query),] * len(products)
         product_names = list(map(lambda x: query_preprocessing(x.get("name")), products))
         brands = list(map(lambda x: query_preprocessing(x.get("brand")), products))
-        authors = list(map(lambda x: " ".join([query_preprocessing(z) for z in x.get("author")]), products))
+        authors = list(map(lambda x: query_preprocessing(x.get("author")), products))
         categories = list(map(lambda x: x.get('categories'), products))
         attributes = list(map(lambda x: x.get('attributes'), products))
         features = list(map(lambda x: [float(x.get(h, 0)) for h in self.precomputed], products))
@@ -163,7 +172,7 @@ class SemRankerPredict:
                 self.zero_idx,
                 self.cat_zero_idx,
                 self.unknown_to_idx,
-                max_cat_length, max_cat_length, max_cat_length*5
+                max_cat_length, max_cat_length, max_cat_length*2
             )
 
         max_attr_length = self.max_attr_length
@@ -175,64 +184,70 @@ class SemRankerPredict:
                 self.zero_idx,
                 self.attr_zero_idx,
                 self.unknown_to_idx,
-                max_attr_length, max_attr_length, max_attr_length*5
+                max_attr_length, max_attr_length, max_attr_length*2
             )
         
         free_features = convert_features(
             features, precomputed_features_min, precomputed_features_max)
 
-        pred_score = self.sess.run('score:0', feed_dict={
-            'query_unigram_indices:0': query_unigram_indices,
-            'query_bigram_indices:0':query_bigram_indices, 
-            'query_char_trigram_indices:0':query_char_trigram_indices,
-            'product_unigram_indices:0': product_unigram_indices,
-            'product_bigram_indices:0': product_bigram_indices,
-            'product_char_trigram_indices:0': product_char_trigram_indices,
-            'brand_unigram_indices:0': brand_unigram_indices,
-            'brand_bigram_indices:0': brand_bigram_indices,
-            'brand_char_trigram_indices:0': brand_char_trigram_indices,
-            'author_unigram_indices:0': author_unigram_indices,
-            'author_bigram_indices:0': author_bigram_indices,
-            'author_char_trigram_indices:0': author_char_trigram_indices,
-            'cat_tokens:0': cat_tokens,
-            'cats_in_product:0': cat_in_product,
-            'cat_unigram_indices:0': cat_unigram_indices,
-            'cat_bigram_indices:0': cat_bigram_indices,
-            'cat_char_trigram_indices:0': cat_char_trigram_indices,
-            'attr_tokens:0': attr_tokens,
-            'attrs_in_product:0': attr_in_product,
-            'attr_unigram_indices:0': attr_unigram_indices,
-            'attr_bigram_indices:0': attr_bigram_indices,
-            'attr_char_trigram_indices:0': attr_char_trigram_indices,
-            'free_features:0': free_features
-        })
+        begin_ = time.time()
+        if not self.using_tf_serving:
+            pred_score = self.sess.run('score:0', feed_dict={
+                'query_unigram_indices:0': query_unigram_indices,
+                'query_bigram_indices:0':query_bigram_indices, 
+                'query_char_trigram_indices:0':query_char_trigram_indices,
+                'product_unigram_indices:0': product_unigram_indices,
+                'product_bigram_indices:0': product_bigram_indices,
+                'product_char_trigram_indices:0': product_char_trigram_indices,
+                'brand_unigram_indices:0': brand_unigram_indices,
+                'brand_bigram_indices:0': brand_bigram_indices,
+                'brand_char_trigram_indices:0': brand_char_trigram_indices,
+                'author_unigram_indices:0': author_unigram_indices,
+                'author_bigram_indices:0': author_bigram_indices,
+                'author_char_trigram_indices:0': author_char_trigram_indices,
+                'cat_tokens:0': cat_tokens,
+                'cats_in_product:0': cat_in_product,
+                'cat_unigram_indices:0': cat_unigram_indices,
+                'cat_bigram_indices:0': cat_bigram_indices,
+                'cat_char_trigram_indices:0': cat_char_trigram_indices,
+                'attr_tokens:0': attr_tokens,
+                'attrs_in_product:0': attr_in_product,
+                'attr_unigram_indices:0': attr_unigram_indices,
+                'attr_bigram_indices:0': attr_bigram_indices,
+                'attr_char_trigram_indices:0': attr_char_trigram_indices,
+                'free_features:0': free_features
+            })
+        else:
+            feed_dict={
+                'query_unigram_indices': query_unigram_indices,
+                'query_bigram_indices':query_bigram_indices, 
+                'query_char_trigram_indices':query_char_trigram_indices,
+                'product_unigram_indices': product_unigram_indices,
+                'product_bigram_indices': product_bigram_indices,
+                'product_char_trigram_indices': product_char_trigram_indices,
+                'brand_unigram_indices': brand_unigram_indices,
+                'brand_bigram_indices': brand_bigram_indices,
+                'brand_char_trigram_indices': brand_char_trigram_indices,
+                'author_unigram_indices': author_unigram_indices,
+                'author_bigram_indices': author_bigram_indices,
+                'author_char_trigram_indices': author_char_trigram_indices,
+                'cat_tokens': cat_tokens,
+                'cat_in_product': cat_in_product,
+                'cat_unigram_indices': cat_unigram_indices,
+                'cat_bigram_indices': cat_bigram_indices,
+                'cat_char_trigram_indices': cat_char_trigram_indices,
+                'attr_tokens': attr_tokens,
+                'attr_in_product': attr_in_product,
+                'attr_unigram_indices': attr_unigram_indices,
+                'attr_bigram_indices': attr_bigram_indices,
+                'attr_char_trigram_indices': attr_char_trigram_indices,
+                'features': free_features
+            }
+            pred_score = self.client.request(feed_dict)
+        end_ = time.time()
 
-        z = feed_dict={
-            'query_unigram_indices': query_unigram_indices,
-            'query_bigram_indices':query_bigram_indices, 
-            'query_char_trigram_indices':query_char_trigram_indices,
-            'product_unigram_indices': product_unigram_indices,
-            'product_bigram_indices': product_bigram_indices,
-            'product_char_trigram_indices': product_char_trigram_indices,
-            'brand_unigram_indices': brand_unigram_indices,
-            'brand_bigram_indices': brand_bigram_indices,
-            'brand_char_trigram_indices': brand_char_trigram_indices,
-            'author_unigram_indices': author_unigram_indices,
-            'author_bigram_indices': author_bigram_indices,
-            'author_char_trigram_indices': author_char_trigram_indices,
-            'cat_tokens': cat_tokens,
-            'cats_in_product': cat_in_product,
-            'cat_unigram_indices': cat_unigram_indices,
-            'cat_bigram_indices': cat_bigram_indices,
-            'cat_char_trigram_indices': cat_char_trigram_indices,
-            'attr_tokens': attr_tokens,
-            'attrs_in_product': attr_in_product,
-            'attr_unigram_indices': attr_unigram_indices,
-            'attr_bigram_indices': attr_bigram_indices,
-            'attr_char_trigram_indices': attr_char_trigram_indices,
-            'free_features': free_features
-        }
-
+        if verbose:
+            return list(pred_score), products, (end_ - begin_)
         return list(pred_score), products
 
 if __name__ == "__main__":
@@ -245,7 +260,24 @@ if __name__ == "__main__":
     # query = "iphone xs max"
     # query = "apple watch"
     # query = "đồng hồ apple watch"
-    query = "realme 3 pro"
+    # query = "realme 3 pro"
+    # query = "note 9"
+    # query = "ipad 2018"
+    # query = "iphone 7 plus"
+    # query = "xiaomi mi 8"
+    # query = "samsung galaxy"
+    # query = "xiaomi redmi note 5"
+    # query = "iphone 8 plus"
+    # query = 'macbook pro 2018' #y
+    # query = "galaxy note"
+    # query = "cnverse cao cổ"
+    # query = "ipad"
+    # query = "s9"
+    # query = "poco f1"
+    # query = "miband 2"
+    # query = "tiger"
+    # query = "samsung j7 64gb"
+    # query = "samsung note 10"
     # query = "chuột dây"
     # query = 'xiaomi'
     # query = 'innis free'
@@ -255,14 +287,13 @@ if __name__ == "__main__":
     # query = 'ma đạo tổ sư đam mỹ'
     # query = 'ủng đi mưa'
     # query = 'đàm thaoij tiếng trung ngành nhà hàng' #y
-    #query = 'vinamil'
+    # query = 'vinamil'
     # query = 'lược sử hacker'
     # query = 'gel xoa tham quang mat'
     # query = 'chuyện đông chuyện tây nguyễn lân dũng'
     # query = 'kiếng bơi cận 6.0 độ'
     # query ='truyen tham tu conan tap 89'
     # query = 'ly giữ nhiệt màu gradient kiểu dáng miow
-    #query = 'macbook pro 2018' #y
     # query = 'truyện siêu quậy teppi tập 15'
     # query = '1451dha001'
     # query = 'mực máy in ts707'
@@ -272,7 +303,7 @@ if __name__ == "__main__":
     # query = 'băng keo cá nhân doremon'
     # query = 'bộ quần áo siêu nhân siêu anh hùng cho bé trai'
     # query = "quần đùi thể thao"
-    #query = "tiếng anh 9"
+    # query = "tiếng anh 9"
     # query = 'decal gạch bông'
     # query = 'ô long viện'
     # query = 'ốp lương cho nokia 3.1'
@@ -283,7 +314,7 @@ if __name__ == "__main__":
     # query = "galaxy note"
     # query = "lop hoc mat ngu"
     # query = "quần giả váy bầu"
-    #query = "tai nghe iphone 5s"
+    # query = "tai nghe iphone 5s"
     # query = "đồng hồ quả lắc có chuông"
     # query = "loa bluetooth mini kết nối tai nghe"
     # query = "dr. spi  arthritis"
@@ -306,21 +337,12 @@ if __name__ == "__main__":
     # query = "kem chong nang l oreal"
     # query = "nhưng don tam ly trong thuyet phuc"
     # query = "iphone xs max"
-    # query = "note 9"
-    # query = "ipad 2018"
-    # query = "iphone 7 plus"
-    # query = "xiaomi mi 8"
-    # query = "samsung galaxy"
-    # query = "xiaomi redmi note 5"
-    # query = "iphone 8 plus"
-    # query = "s9"
-    #query = "poco f1"
-    # query = "miband 2"
-    #query = "samsung j7 64gb"
-    #query = "samsung note 10"
-    # query = "ipad"
     # query = "áo lép ngực"
-    # query = "tiger"
+    # query = "trắc nghiệm bài đọc tiếng ang"
+    # query = "máy quấn chả giò"
+    # query = "thiết bị khử tiếng ồn quạt"
+    query = "thụt bồn cầu bằng cao su"
+    query = "loa sony ultrabass"
     resp = requests.get("http://browser.tiki.services/v2/products?q=%s&limit=1000" % query)
     products = list(map(lambda x: x.get("id"), json.loads(resp.text)['data']['data']))
     
